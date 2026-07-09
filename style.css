@@ -128,6 +128,11 @@ body.no-scroll {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  direction: rtl;
+}
+
+.side-drawer > * {
+  direction: ltr;
 }
 
 .side-drawer.open {
