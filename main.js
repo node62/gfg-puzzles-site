@@ -80,7 +80,8 @@ async function init() {
 
 async function fetchPuzzles() {
   try {
-    const res = await fetch('/puzzles.json');
+    const res = await fetch('./puzzles.json');
+    if (!res.ok) throw new Error('Network response was not ok');
     const rawData = await res.json();
     
     const uniqueMap = new Map();
