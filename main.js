@@ -23,9 +23,9 @@ let filters = {
 let expandedNotes = new Set();
 
 let visibleColumns = {
-  sno: true,
+  note: true,
+  star: true,
   category: true,
-  title: true,
   companies: false 
 };
 
@@ -345,11 +345,10 @@ function setupRandomBtn() {
           <table class="data-table">
             <tbody>
               <tr>
-                <td class="col-note"><button class="btn-icon" onclick="toggleNoteRow('${rnd.url}')">✎</button></td>
+                ${visibleColumns.note ? `<td class="col-note"><button class="btn-icon" onclick="toggleNoteRow('${rnd.url}')">✎</button></td>` : ''}
+                ${visibleColumns.star ? `<td class="col-star"><button class="btn-icon btn-star ${userData.starred.includes(rnd.url) ? 'active' : ''}" onclick="toggleStar('${rnd.url}')">${userData.starred.includes(rnd.url) ? '★' : '☆'}</button></td>` : ''}
                 <td class="col-done"><button class="btn-done-box" onclick="toggleDone('${rnd.url}'); document.getElementById('random-question-container').innerHTML=''">✓</button></td>
-                <td class="col-star"><button class="btn-icon btn-star ${userData.starred.includes(rnd.url) ? 'active' : ''}" onclick="toggleStar('${rnd.url}')">${userData.starred.includes(rnd.url) ? '★' : '☆'}</button></td>
-                ${visibleColumns.sno ? `<td class="col-sno">${rnd.sno}.</td>` : ''}
-                ${visibleColumns.title ? `<td class="col-title"><a href="${rnd.url}" target="_blank" class="puzzle-link" onclick="markOpened('${rnd.url}')">${rnd.title}</a></td>` : ''}
+                <td class="col-title"><a href="${rnd.url}" target="_blank" class="puzzle-link" onclick="markOpened('${rnd.url}')">${rnd.sno}. ${rnd.title}</a></td>
                 ${visibleColumns.category ? `<td class="col-category" style="color:${getCategoryColor(rnd.category)}; font-size:0.8rem; font-weight:700;">${rnd.category}</td>` : ''}
                 ${visibleColumns.companies ? `<td class="col-companies">${companiesText}</td>` : ''}
               </tr>
@@ -364,10 +363,12 @@ function setupRandomBtn() {
     });
     
     const starBtn = randomContainer.querySelector('.btn-star');
-    starBtn.addEventListener('click', () => {
-      starBtn.classList.toggle('active');
-      starBtn.textContent = starBtn.classList.contains('active') ? '★' : '☆';
-    });
+    if (starBtn) {
+      starBtn.addEventListener('click', () => {
+        starBtn.classList.toggle('active');
+        starBtn.textContent = starBtn.classList.contains('active') ? '★' : '☆';
+      });
+    }
   });
 }
 
@@ -463,17 +464,16 @@ function createRowHTML(p, isCurrentlySolving = false) {
   }
 
   return `
-    <td class="col-note">
+    ${visibleColumns.note ? `<td class="col-note">
       <button class="btn-icon ${hasNote ? 'active' : ''}" style="${hasNote ? 'color: var(--accent-color);' : ''}" onclick="toggleNoteRow('${p.url}')">✎</button>
-    </td>
+    </td>` : ''}
+    ${visibleColumns.star ? `<td class="col-star">
+      <button class="btn-icon btn-star ${isStarred ? 'active' : ''}" data-url="${p.url}">${isStarred ? '★' : '☆'}</button>
+    </td>` : ''}
     <td class="col-done">
       <button class="btn-done-box ${isDone ? 'active' : ''}" data-url="${p.url}">✓</button>
     </td>
-    <td class="col-star">
-      <button class="btn-icon btn-star ${isStarred ? 'active' : ''}" data-url="${p.url}">${isStarred ? '★' : '☆'}</button>
-    </td>
-    ${visibleColumns.sno ? `<td class="col-sno">${p.sno}.</td>` : ''}
-    ${visibleColumns.title ? `<td class="col-title"><a href="${p.url}" target="_blank" class="puzzle-link" onclick="markOpened('${p.url}')">${p.title}</a>${dismissBtn}</td>` : ''}
+    <td class="col-title"><a href="${p.url}" target="_blank" class="puzzle-link" onclick="markOpened('${p.url}')">${p.sno}. ${p.title}</a>${dismissBtn}</td>
     ${visibleColumns.category ? `<td class="col-category" style="color:${getCategoryColor(p.category)}; font-size:0.8rem; font-weight:700;">${p.category}</td>` : ''}
     ${visibleColumns.companies ? `<td class="col-companies">${companiesText}</td>` : ''}
   `;
@@ -481,16 +481,16 @@ function createRowHTML(p, isCurrentlySolving = false) {
 
 function attachRowListeners(tr, p) {
   const doneBtn = tr.querySelector('.btn-done-box');
-  doneBtn.addEventListener('click', () => toggleDone(p.url));
+  if (doneBtn) doneBtn.addEventListener('click', () => toggleDone(p.url));
 
   const starBtn = tr.querySelector('.btn-star');
-  starBtn.addEventListener('click', () => toggleStar(p.url));
+  if (starBtn) starBtn.addEventListener('click', () => toggleStar(p.url));
 }
 
 function getColCount() {
-  let colCount = 3; // note + done + star
-  if (visibleColumns.sno) colCount++;
-  if (visibleColumns.title) colCount++;
+  let colCount = 2; // done + title
+  if (visibleColumns.note) colCount++;
+  if (visibleColumns.star) colCount++;
   if (visibleColumns.category) colCount++;
   if (visibleColumns.companies) colCount++;
   return colCount;
@@ -631,11 +631,10 @@ function renderPuzzles() {
   
   thead.innerHTML = `
     <tr>
-      <th style="width: 50px;">Note</th>
+      ${visibleColumns.note ? `<th style="width: 50px;">Note</th>` : ''}
+      ${visibleColumns.star ? `<th class="sortable col-star ${isCol('star')}" data-col="star">Star${getSortIcon('star')}</th>` : ''}
       <th class="sortable col-done ${isCol('done')}" data-col="done">Done${getSortIcon('done')}</th>
-      <th class="sortable col-star ${isCol('star')}" data-col="star">Star${getSortIcon('star')}</th>
-      ${visibleColumns.sno ? `<th>S.No</th>` : ''}
-      ${visibleColumns.title ? `<th class="sortable col-title ${isCol('title')}" data-col="title">Title${getSortIcon('title')}</th>` : ''}
+      <th class="sortable col-title ${isCol('title')}" data-col="title">Title${getSortIcon('title')}</th>
       ${visibleColumns.category ? `<th class="sortable col-category ${isCol('category')}" data-col="category">Category${getSortIcon('category')}</th>` : ''}
       ${visibleColumns.companies ? `<th class="sortable col-companies ${isCol('companies')}" data-col="companies">Companies${getSortIcon('companies')}</th>` : ''}
     </tr>

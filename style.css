@@ -589,7 +589,7 @@ body.no-scroll {
 
 @media (max-width: 800px) {
   .two-box-layout {
-    flex-direction: column;
+    flex-direction: column-reverse;
   }
 }
 
@@ -597,6 +597,10 @@ body.no-scroll {
   .box-content {
     flex-direction: column;
     align-items: stretch;
+  }
+  .controls-top-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
   }
   .matte-btn.random-btn, .custom-dropdown, .matte-checkbox {
     margin-left: 0 !important;
@@ -615,5 +619,17 @@ body.no-scroll {
   }
   .site-header {
     flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+  .data-table th, .data-table td {
+    padding: 0.5rem 0.25rem;
+  }
+  .col-title {
+    white-space: normal !important;
+    word-break: break-word;
+  }
+  .col-title a {
+    white-space: normal !important;
   }
 }
