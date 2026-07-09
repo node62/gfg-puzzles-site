@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧩</text></svg>" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>gfg puzzle practice</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <!-- Overlay and Side Drawer -->
+  <div class="drawer-overlay" id="drawer-overlay"></div>
+  <div class="side-drawer" id="side-drawer">
+    <div class="drawer-header">
+      <h2>Filter Companies</h2>
+      <button class="drawer-close" id="drawer-close">✖</button>
+    </div>
+    <div class="drawer-search">
+      <input type="text" id="company-search" class="matte-input" placeholder="Search companies...">
+    </div>
+    
+    <div class="drawer-content">
+      <label class="matte-checkbox menu-item" style="margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-color);">
+        <input type="checkbox" id="company-all" checked>
+        <span class="checkmark"></span>
+        All Companies
+      </label>
+
+      <div class="company-list" id="company-list">
+        <!-- populated by JS -->
+      </div>
+
+      <button class="matte-btn btn-danger" id="reset-progress-btn">Reset All Progress</button>
+    </div>
+  </div>
+
+  <div class="app-container">
+    <header class="site-header">
+      <button class="hamburger-btn" id="hamburger-btn">☰ Filter Companies</button>
+      <div class="header-main">
+        <h1>gfg puzzle practice</h1>
+        <div class="top-indicator">
+          <span class="unsolved-count" id="unsolved-count">0</span> unsolved
+          <span class="separator">|</span>
+          <span class="solved-count" id="solved-count">0</span> solved
+        </div>
+      </div>
+    </header>
+
+    <div class="two-box-layout">
+      <!-- LEFT BOX: Controls -->
+      <div class="control-box left-box">
+        <div class="box-title">CONTROLS</div>
+        <div class="box-content" style="flex-direction: column; align-items: stretch; gap: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; flex-wrap: nowrap; gap: 0.5rem;">
+            <div class="custom-dropdown" id="columns-dropdown" style="flex-shrink: 0;">
+              <button class="dropdown-btn" id="columns-btn" style="min-width: 140px;">Show Cols <span>▼</span></button>
+              <div class="dropdown-menu" id="columns-menu">
+                <label class="matte-checkbox menu-item">
+                  <input type="checkbox" class="col-toggle" value="sno" checked>
+                  <span class="checkmark"></span> S.No
+                </label>
+                <div class="menu-divider"></div>
+                <label class="matte-checkbox menu-item">
+                  <input type="checkbox" class="col-toggle" value="title" checked>
+                  <span class="checkmark"></span> Title
+                </label>
+                <div class="menu-divider"></div>
+                <label class="matte-checkbox menu-item">
+                  <input type="checkbox" class="col-toggle" value="category" checked>
+                  <span class="checkmark"></span> Category
+                </label>
+                <div class="menu-divider"></div>
+                <label class="matte-checkbox menu-item">
+                  <input type="checkbox" class="col-toggle" value="companies">
+                  <span class="checkmark"></span> Companies
+                </label>
+              </div>
+            </div>
+
+            <label class="matte-checkbox" style="white-space: nowrap;">
+              <input type="checkbox" id="starred-filter">
+              <span class="checkmark"></span>
+              ⭐️ Starred Only
+            </label>
+
+            <label class="matte-checkbox" style="white-space: nowrap;">
+              <input type="checkbox" id="show-notes-filter">
+              <span class="checkmark"></span>
+              Show All Notes
+            </label>
+          </div>
+
+          <div style="display: flex; justify-content: center; width: 100%; margin-top: 0.5rem;">
+            <button class="matte-btn random-btn" id="random-btn" style="margin: 0; min-width: 200px; padding: 0.6rem;">🎲 Press for random question</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT BOX: Heatmap -->
+      <div class="control-box right-box">
+        <div class="box-title">ACTIVITY (LAST 14 DAYS)</div>
+        <div class="heatmap-wrapper">
+          <div class="heatmap-container" id="heatmap">
+            <!-- SVG Heatmap injected here -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Container for the random question row -->
+    <div id="currently-solving-container"></div>
+    <div id="random-question-container"></div>
+
+    <main class="main-content" id="puzzles-container">
+      <!-- Puzzles grouped by section as TABLES will be injected here -->
+    </main>
+  </div>
+  
+  <script type="module" src="/main.js"></script>
+</body>
+</html>
