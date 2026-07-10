@@ -125,6 +125,7 @@ function loadState() {
       if (!userData.completed) userData.completed = {};
       if (!userData.opened) userData.opened = {};
       if (!userData.notes) userData.notes = {};
+      if (!userData.skipped) userData.skipped = {};
     }
     const savedFilters = localStorage.getItem(FILTERS_KEY);
     if (savedFilters) {
@@ -161,6 +162,16 @@ function toggleStar(url) {
   saveUserData();
   renderPuzzles();
 }
+
+window.toggleSkip = function(url) {
+  if (userData.skipped[url]) {
+    delete userData.skipped[url];
+  } else {
+    userData.skipped[url] = Date.now();
+  }
+  saveUserData();
+  renderPuzzles();
+};
 
 function toggleDone(url) {
   if (userData.completed[url]) {
@@ -234,9 +245,18 @@ function setupDrawerLogic() {
         userData.starred = [];
         userData.opened = {};
         userData.notes = {};
+        userData.skipped = {};
         saveUserData();
         renderPuzzles();
       }
+    });
+  }
+
+  const randomBtnToggle = document.getElementById('random-btn-toggle');
+  if (randomBtnToggle) {
+    randomBtnToggle.addEventListener('change', (e) => {
+      const btn = document.getElementById('random-btn');
+      if (btn) btn.style.display = e.target.checked ? 'block' : 'none';
     });
   }
 }
@@ -339,8 +359,9 @@ function setupRandomBtn() {
                 </td>` : ''}
                 <td class="col-done"><button class="btn-done-box" onclick="toggleDone('${rnd.url}'); document.getElementById('random-question-container').innerHTML=''">✓</button></td>
                 <td class="col-title"><a href="${rnd.url}" target="_blank" class="puzzle-link" onclick="markOpened('${rnd.url}')">${rnd.sno}. ${rnd.title}</a></td>
-                ${visibleColumns.category ? `<td class="col-category" style="color:${getCategoryColor(rnd.category)}; font-size:0.8rem; font-weight:700;">${rnd.category}</td>` : ''}
-                ${visibleColumns.companies ? `<td class="col-companies">${companiesText}</td>` : ''}
+                ${visibleColumns.category ? `<td class="col-category"><span class="badge ${rnd.category.replace(/ /g, '-').toLowerCase()}">${rnd.category}</span></td>` : ''}
+                ${visibleColumns.companies ? `<td class="col-companies">${(rnd.companies_asked || []).join(', ')}</td>` : ''}
+                <td class="col-skip"><button class="btn-icon" style="font-size: 0.75rem; color: var(--text-muted); padding: 0.2rem 0.5rem;" onclick="toggleSkip('${rnd.url}')">[ Skip ]</button></td>
               </tr>
             </tbody>
           </table>
@@ -464,8 +485,11 @@ function createRowHTML(p, isCurrentlySolving = false) {
       <button class="btn-done-box ${isDone ? 'active' : ''}" data-url="${p.url}">✓</button>
     </td>
     <td class="col-title"><a href="${p.url}" target="_blank" class="puzzle-link" onclick="markOpened('${p.url}')">${p.sno}. ${p.title}</a>${dismissBtn}</td>
-    ${visibleColumns.category ? `<td class="col-category" style="color:${getCategoryColor(p.category)}; font-size:0.8rem; font-weight:700;">${p.category}</td>` : ''}
-    ${visibleColumns.companies ? `<td class="col-companies">${companiesText}</td>` : ''}
+    ${visibleColumns.category ? `<td class="col-category"><span class="badge ${p.category.replace(/ /g, '-').toLowerCase()}">${p.category}</span></td>` : ''}
+    ${visibleColumns.companies ? `<td class="col-companies">${(p.companies_asked || []).join(', ')}</td>` : ''}
+    <td class="col-skip">
+      <button class="btn-icon ${userData.skipped[p.url] ? 'active' : ''}" style="font-size: 0.75rem; color: ${userData.skipped[p.url] ? 'var(--accent-color)' : 'var(--text-muted)'}; padding: 0.2rem 0.5rem;" onclick="toggleSkip('${p.url}')">[ Skip ]</button>
+    </td>
   `;
 }
 
@@ -478,7 +502,7 @@ function attachRowListeners(tr, p) {
 }
 
 function getColCount() {
-  let colCount = 2; // done + title
+  let colCount = 3; // done + title + skip
   if (visibleColumns.note) colCount++;
   if (visibleColumns.star) colCount++;
   if (visibleColumns.category) colCount++;
@@ -558,8 +582,13 @@ function renderPuzzles() {
   others.sort((a, b) => {
     let valA, valB;
     if (filters.sortCol === 'done') {
-      valA = !!userData.completed[a.url] ? 1 : 0;
-      valB = !!userData.completed[b.url] ? 1 : 0;
+      const getStatus = (u) => {
+        if (userData.completed[u]) return Infinity;
+        if (userData.skipped[u]) return userData.skipped[u];
+        return 0;
+      };
+      valA = getStatus(a.url);
+      valB = getStatus(b.url);
     } else if (filters.sortCol === 'star') {
       valA = userData.starred.includes(a.url) ? 1 : 0;
       valB = userData.starred.includes(b.url) ? 1 : 0;
@@ -627,6 +656,7 @@ function renderPuzzles() {
       <th class="sortable col-title ${isCol('title')}" data-col="title">Title${getSortIcon('title')}</th>
       ${visibleColumns.category ? `<th class="sortable col-category ${isCol('category')}" data-col="category">Category${getSortIcon('category')}</th>` : ''}
       ${visibleColumns.companies ? `<th class="sortable col-companies ${isCol('companies')}" data-col="companies">Companies${getSortIcon('companies')}</th>` : ''}
+      <th class="col-skip" style="width: 60px;">Skip</th>
     </tr>
   `;
   
