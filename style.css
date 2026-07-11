@@ -169,6 +169,30 @@ body.no-scroll {
   text-align: center;
 }
 
+.btn-skip {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-skip:hover {
+  border-color: var(--text-muted);
+  color: var(--text-main);
+}
+
+.btn-skip.active {
+  background: var(--accent-color);
+  color: var(--bg-color);
+  border-color: var(--accent-color);
+}
+
 .drawer-search {
   padding: 1rem 1.5rem;
   border-bottom: 1px solid var(--border-color);

@@ -361,7 +361,7 @@ function setupRandomBtn() {
                 <td class="col-title"><a href="${rnd.url}" target="_blank" class="puzzle-link" onclick="markOpened('${rnd.url}')">${rnd.sno}. ${rnd.title}</a></td>
                 ${visibleColumns.category ? `<td class="col-category"><span class="badge ${rnd.category.replace(/ /g, '-').toLowerCase()}">${rnd.category}</span></td>` : ''}
                 ${visibleColumns.companies ? `<td class="col-companies">${(rnd.companies_asked || []).join(', ')}</td>` : ''}
-                <td class="col-skip"><button class="btn-icon" style="font-size: 0.75rem; color: var(--text-muted); padding: 0.2rem 0.5rem;" onclick="toggleSkip('${rnd.url}')">[ Skip ]</button></td>
+                <td class="col-skip"><button class="btn-skip" onclick="toggleSkip('${rnd.url}')">Skip</button></td>
               </tr>
             </tbody>
           </table>
@@ -488,7 +488,7 @@ function createRowHTML(p, isCurrentlySolving = false) {
     ${visibleColumns.category ? `<td class="col-category"><span class="badge ${p.category.replace(/ /g, '-').toLowerCase()}">${p.category}</span></td>` : ''}
     ${visibleColumns.companies ? `<td class="col-companies">${(p.companies_asked || []).join(', ')}</td>` : ''}
     <td class="col-skip">
-      <button class="btn-icon ${userData.skipped[p.url] ? 'active' : ''}" style="font-size: 0.75rem; color: ${userData.skipped[p.url] ? 'var(--accent-color)' : 'var(--text-muted)'}; padding: 0.2rem 0.5rem;" onclick="toggleSkip('${p.url}')">[ Skip ]</button>
+      <button class="btn-skip ${userData.skipped[p.url] ? 'active' : ''}" onclick="toggleSkip('${p.url}')">Skip</button>
     </td>
   `;
 }
