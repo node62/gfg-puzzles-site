@@ -414,7 +414,6 @@ h1, h2, h3 {
 .badge-tag { cursor: pointer; border: 1px solid transparent; background: rgba(255,255,255,0.1); color: var(--text-main); }
 .badge-tag:hover { background: rgba(255,255,255,0.2); }
 
-/* specific default badges if they exist, but mostly we rely on JS generating dynamic colors or falling back to default */
 .badge-great { background: rgba(139, 92, 246, 0.15); color: var(--tag-great); border-color: rgba(139, 92, 246, 0.3); }
 .badge-good { background: rgba(59, 130, 246, 0.15); color: var(--tag-good); border-color: rgba(59, 130, 246, 0.3); }
 .badge-trivial { background: rgba(100, 116, 139, 0.15); color: var(--tag-trivial); border-color: rgba(100, 116, 139, 0.3); }
@@ -425,6 +424,9 @@ h1, h2, h3 {
 
 .tag-popover {
   position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
   background: var(--bg-surface);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
@@ -442,10 +444,9 @@ h1, h2, h3 {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.5rem;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  background: rgba(0,0,0,0.2);
+  gap: 0.5rem;
+  padding: 0.25rem;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 
 /* Heatmap */
@@ -507,9 +508,9 @@ h1, h2, h3 {
   border-radius: var(--radius-md);
   padding: 1rem;
   display: grid;
-  grid-template-columns: auto auto auto 1fr auto auto;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 1rem;
+  gap: 1.5rem;
   transition: all 0.2s ease;
   position: relative;
 }
@@ -521,11 +522,21 @@ h1, h2, h3 {
   opacity: 0.6;
 }
 
+/* 2x2 grid for actions */
 .col-actions {
-  display: flex;
-  gap: 0.5rem;
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  gap: 0.5rem 0.75rem; /* row-gap col-gap */
   align-items: center;
+  justify-items: start;
 }
+
+.action-note { grid-area: 1 / 1 / 2 / 2; }
+.action-tags { grid-area: 1 / 2 / 2 / 3; }
+.action-check { grid-area: 2 / 1 / 3 / 2; }
+.action-count { grid-area: 2 / 2 / 3 / 3; }
+
 .btn-icon {
   background: transparent;
   border: none;
@@ -541,26 +552,24 @@ h1, h2, h3 {
 .btn-icon:hover { background: rgba(255,255,255,0.1); color: var(--text-main); }
 .btn-icon.active-note { color: var(--accent-primary); }
 
-.col-done {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
 .btn-check {
   width: 24px;
   height: 24px;
   border-radius: 4px;
   border: 1px solid var(--border-color);
   background: transparent;
-  color: transparent;
+  color: var(--text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
+  font-weight: 700;
+  font-size: 1rem;
 }
 .btn-check:hover {
   border-color: var(--accent-primary);
+  color: var(--accent-primary);
 }
 .btn-check.active {
   background: var(--accent-primary);
@@ -576,8 +585,9 @@ h1, h2, h3 {
   font-size: 0.8rem;
   color: var(--text-muted);
   background: rgba(0,0,0,0.3);
-  padding: 0.2rem 0.6rem;
+  padding: 0.15rem 0.5rem;
   border-radius: var(--radius-sm);
+  min-width: 32px;
 }
 
 .col-main {
@@ -589,7 +599,7 @@ h1, h2, h3 {
   color: var(--text-main);
   text-decoration: none;
   font-weight: 500;
-  font-size: 1rem;
+  font-size: 0.85rem; /* Smaller font for title */
   transition: color 0.2s;
 }
 .puzzle-link:hover { color: var(--accent-primary); }
@@ -603,12 +613,6 @@ h1, h2, h3 {
 .badge-cat {
   background: rgba(255,255,255,0.1);
   color: var(--text-muted);
-}
-
-.col-tags {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
 }
 
 .col-skip {
@@ -652,18 +656,9 @@ h1, h2, h3 {
   }
   .dropdown-btn { width: 100%; }
   
-  /* Transform puzzle cards for mobile */
+  /* Keep simple columns for mobile */
   .puzzle-card {
-    grid-template-columns: auto auto auto 1fr auto;
-    grid-template-areas:
-      "actions done count main skip"
-      "tags tags tags tags tags";
-    gap: 0.75rem;
+    grid-template-columns: auto 1fr auto;
+    gap: 1rem;
   }
-  .col-actions { grid-area: actions; }
-  .col-done { grid-area: done; }
-  .col-count { grid-area: count; }
-  .col-main { grid-area: main; }
-  .col-skip { grid-area: skip; }
-  .col-tags { grid-area: tags; justify-content: flex-start; padding-top: 0.5rem; border-top: 1px solid var(--border-color); }
 }

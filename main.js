@@ -174,6 +174,27 @@ function saveFilters() {
   localStorage.setItem(FILTERS_KEY, JSON.stringify(filters));
 }
 
+// LONG PRESS REVIEW LOGIC
+let longPressTimer;
+let isLongPress = false;
+
+window.startLongPress = function(url, e) {
+  isLongPress = false;
+  longPressTimer = setTimeout(() => {
+    isLongPress = true;
+    decrementReview(url);
+  }, 600); // 600ms for long press
+};
+
+window.cancelLongPress = function() {
+  if (longPressTimer) clearTimeout(longPressTimer);
+};
+
+window.handleClickPlus = function(url, e) {
+  if (isLongPress) return; // Ignore if long press was triggered
+  incrementReview(url);
+};
+
 window.incrementReview = function(url) {
   if (!userData.reviewCount[url]) {
     userData.reviewCount[url] = { count: 0, lastDone: null };
@@ -181,13 +202,18 @@ window.incrementReview = function(url) {
   userData.reviewCount[url].count += 1;
   userData.reviewCount[url].lastDone = getLocalDateString();
   
-  // Remove from currently solving automatically when marked done
-  if (userData.opened[url]) {
-    delete userData.opened[url];
-  }
+  if (userData.opened[url]) delete userData.opened[url];
   
   saveUserData();
   renderPuzzles();
+};
+
+window.decrementReview = function(url) {
+  if (userData.reviewCount[url] && userData.reviewCount[url].count > 0) {
+    userData.reviewCount[url].count -= 1;
+    saveUserData();
+    renderPuzzles();
+  }
 };
 
 window.toggleTag = function(url, tag, e) {
@@ -247,17 +273,43 @@ function setupTagManager() {
   const renderTagManager = () => {
     tagManagerList.innerHTML = userData.customTags.map((tag, idx) => `
       <div class="tag-list-item">
-        <span>${tag}</span>
+        <input type="text" class="matte-input" style="padding: 0.25rem 0.5rem; flex: 1; border: none; background: transparent;" value="${tag}" onchange="editCustomTag(${idx}, this.value)">
         <button class="btn-icon" style="padding:0; color:var(--danger);" onclick="deleteCustomTag(${idx})">✖</button>
       </div>
     `).join('');
-    // Rebuild tag filter menu
     buildTagFilterMenu();
   };
 
+  window.editCustomTag = function(idx, val) {
+    const newVal = val.trim();
+    if (newVal && newVal !== userData.customTags[idx] && !userData.customTags.includes(newVal)) {
+      const oldVal = userData.customTags[idx];
+      userData.customTags[idx] = newVal;
+      
+      // Update references in all puzzles
+      Object.keys(userData.tags).forEach(url => {
+        const tIdx = userData.tags[url].indexOf(oldVal);
+        if (tIdx > -1) userData.tags[url][tIdx] = newVal;
+      });
+      
+      saveUserData();
+      renderTagManager();
+      renderPuzzles();
+    } else {
+      renderTagManager(); // revert
+    }
+  };
+
   window.deleteCustomTag = function(idx) {
-    if (confirm(`Delete tag "${userData.customTags[idx]}"?`)) {
+    const oldVal = userData.customTags[idx];
+    if (confirm(`Delete tag "${oldVal}"?`)) {
       userData.customTags.splice(idx, 1);
+      
+      Object.keys(userData.tags).forEach(url => {
+        const tIdx = userData.tags[url].indexOf(oldVal);
+        if (tIdx > -1) userData.tags[url].splice(tIdx, 1);
+      });
+      
       saveUserData();
       renderTagManager();
       renderPuzzles();
@@ -561,26 +613,29 @@ function createCardHTML(p, isCurrentlySolving = false) {
     <div class="puzzle-card ${isDone ? 'is-done' : ''}">
       <div class="col-actions">
         ${visibleColumns.note ? `
-        <button class="btn-icon ${hasNote ? 'active-note' : ''}" onclick="toggleNoteRow('${p.url}')" title="Notes">
+        <button class="btn-icon action-note ${hasNote ? 'active-note' : ''}" onclick="toggleNoteRow('${p.url}')" title="Notes">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
         </button>
         ` : ''}
         
         ${visibleColumns.tags ? `
-        <div class="tags-container" style="position:relative; margin-left: 0.25rem;">
+        <div class="tags-container action-tags" style="position:relative;">
           ${renderTagBadges(p.url)}
         </div>
         ` : ''}
+
+        <button 
+          class="btn-check action-check ${isDone ? 'active' : ''}" 
+          onpointerdown="startLongPress('${p.url}', event)" 
+          onpointerup="cancelLongPress(); handleClickPlus('${p.url}', event)" 
+          onpointerleave="cancelLongPress()" 
+          title="Increment (Long press to decrement)">+</button>
+
+        <div class="col-count action-count">
+          ${rc.count}
+        </div>
       </div>
 
-      <div class="col-done">
-        <button class="btn-check ${isDone ? 'active' : ''}" onclick="incrementReview('${p.url}')" title="Mark Done">✓</button>
-      </div>
-
-      <div class="col-count">
-        ${rc.count}
-      </div>
-      
       <div class="col-main">
         <div>
           <a href="${p.url}" target="_blank" class="puzzle-link" onclick="markOpened('${p.url}')">${p.sno}. ${p.title}</a>${dismissBtn}
