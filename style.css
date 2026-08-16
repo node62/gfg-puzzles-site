@@ -577,17 +577,30 @@ h1, h2, h3 {
   color: #000;
 }
 
-.col-count {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.count-input {
+  width: 40px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  text-align: center;
   font-weight: 600;
   font-size: 0.8rem;
-  color: var(--text-muted);
-  background: rgba(0,0,0,0.3);
-  padding: 0.15rem 0.5rem;
+  padding: 0.15rem 0.2rem;
   border-radius: var(--radius-sm);
-  min-width: 32px;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+.count-input:focus {
+  border-color: var(--accent-primary);
+}
+.count-input::-webkit-outer-spin-button,
+.count-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.count-input[type=number] {
+  -moz-appearance: textfield;
 }
 
 .col-main {

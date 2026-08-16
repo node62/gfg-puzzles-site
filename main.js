@@ -174,27 +174,6 @@ function saveFilters() {
   localStorage.setItem(FILTERS_KEY, JSON.stringify(filters));
 }
 
-// LONG PRESS REVIEW LOGIC
-let longPressTimer;
-let isLongPress = false;
-
-window.startLongPress = function(url, e) {
-  isLongPress = false;
-  longPressTimer = setTimeout(() => {
-    isLongPress = true;
-    decrementReview(url);
-  }, 600); // 600ms for long press
-};
-
-window.cancelLongPress = function() {
-  if (longPressTimer) clearTimeout(longPressTimer);
-};
-
-window.handleClickPlus = function(url, e) {
-  if (isLongPress) return; // Ignore if long press was triggered
-  incrementReview(url);
-};
-
 window.incrementReview = function(url) {
   if (!userData.reviewCount[url]) {
     userData.reviewCount[url] = { count: 0, lastDone: null };
@@ -208,12 +187,22 @@ window.incrementReview = function(url) {
   renderPuzzles();
 };
 
-window.decrementReview = function(url) {
-  if (userData.reviewCount[url] && userData.reviewCount[url].count > 0) {
-    userData.reviewCount[url].count -= 1;
-    saveUserData();
-    renderPuzzles();
+window.setReviewCount = function(url, val) {
+  let count = parseInt(val, 10);
+  if (isNaN(count) || count < 0) count = 0;
+  
+  if (!userData.reviewCount[url]) {
+    userData.reviewCount[url] = { count: 0, lastDone: null };
   }
+  userData.reviewCount[url].count = count;
+  if (count > 0 && !userData.reviewCount[url].lastDone) {
+    userData.reviewCount[url].lastDone = getLocalDateString();
+  }
+  
+  if (count > 0 && userData.opened[url]) delete userData.opened[url];
+  
+  saveUserData();
+  renderPuzzles();
 };
 
 window.toggleTag = function(url, tag, e) {
@@ -627,14 +616,10 @@ function createCardHTML(p, isCurrentlySolving = false) {
 
         <button 
           class="btn-check action-check ${isDone ? 'active' : ''}" 
-          onpointerdown="startLongPress('${p.url}', event)" 
-          onpointerup="cancelLongPress(); handleClickPlus('${p.url}', event)" 
-          onpointerleave="cancelLongPress()" 
-          title="Increment (Long press to decrement)">+</button>
+          onclick="incrementReview('${p.url}')" 
+          title="Increment">+</button>
 
-        <div class="col-count action-count">
-          ${rc.count}
-        </div>
+        <input type="number" class="count-input action-count" value="${rc.count}" onchange="setReviewCount('${p.url}', this.value)" min="0">
       </div>
 
       <div class="col-main">
