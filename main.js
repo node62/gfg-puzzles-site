@@ -2,32 +2,32 @@ const DATA_KEY = 'gfgTrackerData';
 const FILTERS_KEY = 'gfgTrackerFilters';
 
 let allPuzzles = [];
-let uniqueCompanies = new Set();
 let categoryOrder = [];
 
 let userData = {
-  starred: [], 
-  completed: {},
+  reviewCount: {}, // { url: count }
+  tags: {},        // { url: ['Great'] }
   opened: {},
-  notes: {}
+  notes: {},
+  skipped: {},
+  customQuestions: [] // [{ url, title, category, sno }]
 };
 
 let filters = {
-  companies: [],
-  starredOnly: false,
-  showNotes: false,
-  sortCol: 'done',
-  sortDir: 'asc'
+  tag: null, // null means all
+  showNotes: false
 };
 
 let expandedNotes = new Set();
+let tagPopoverOpenFor = null;
 
 let visibleColumns = {
   note: true,
-  star: true,
-  category: true,
-  companies: false 
+  tags: true,
+  category: true
 };
+
+const PREDEFINED_TAGS = ['Great', 'Good', 'Trivial', 'Hard', 'Review'];
 
 // DOM
 const puzzlesContainer = document.getElementById('puzzles-container');
@@ -36,9 +36,8 @@ const heatmapContainer = document.getElementById('heatmap');
 const unsolvedCountEl = document.getElementById('unsolved-count');
 const solvedCountEl = document.getElementById('solved-count');
 
-const columnsBtn = document.getElementById('columns-btn');
-const columnsMenu = document.getElementById('columns-menu');
-const starredCheckbox = document.getElementById('starred-filter');
+const tagFilterDropdown = document.getElementById('tag-filter-dropdown');
+const tagFilterMenu = document.getElementById('tag-filter-menu');
 const showNotesCheckbox = document.getElementById('show-notes-filter');
 const randomBtn = document.getElementById('random-btn');
 const randomContainer = document.getElementById('random-question-container');
@@ -47,35 +46,36 @@ const hamburgerBtn = document.getElementById('hamburger-btn');
 const sideDrawer = document.getElementById('side-drawer');
 const drawerOverlay = document.getElementById('drawer-overlay');
 const drawerClose = document.getElementById('drawer-close');
-const companySearch = document.getElementById('company-search');
-const companyList = document.getElementById('company-list');
-const companyAllCb = document.getElementById('company-all');
+
+const addModalOverlay = document.getElementById('add-modal-overlay');
+const addModal = document.getElementById('add-modal');
+const openAddModalBtn = document.getElementById('open-add-modal-btn');
+const addModalClose = document.getElementById('add-modal-close');
+const saveCustomBtn = document.getElementById('save-custom-btn');
 
 function getLocalDateString(dateObj = new Date()) {
   const offset = dateObj.getTimezoneOffset() * 60000;
   return new Date(dateObj.getTime() - offset).toISOString().split('T')[0];
 }
 
-function getCategoryColor(category) {
-  let hash = 0;
-  for (let i = 0; i < category.length; i++) {
-    hash = category.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 60%, 65%)`; 
-}
-
 async function init() {
   loadState();
   await fetchPuzzles();
-  populateCompanyDropdown();
-  setupDropdownLogic();
   setupDrawerLogic();
+  setupAddModalLogic();
+  setupDropdownLogic();
   setupColumnToggles();
   setupRandomBtn();
   renderTopIndicator();
   renderHeatmap();
   renderPuzzles();
+  
+  document.addEventListener('click', (e) => {
+    if (tagPopoverOpenFor && !e.target.closest('.tag-popover') && !e.target.closest('.badge-add')) {
+      tagPopoverOpenFor = null;
+      renderPuzzles();
+    }
+  });
 }
 
 async function fetchPuzzles() {
@@ -98,15 +98,23 @@ async function fetchPuzzles() {
       }
     });
 
-    const uniqueData = Array.from(uniqueMap.values());
+    let uniqueData = Array.from(uniqueMap.values());
+    
+    // Add custom questions
+    if (userData.customQuestions) {
+      userData.customQuestions.forEach(cp => {
+        if (!seenCategories.has(cp.category)) {
+          seenCategories.add(cp.category);
+          categoryOrder.push(cp.category);
+        }
+        uniqueData.push(cp);
+      });
+    }
 
     allPuzzles = uniqueData.map((p, index) => {
-      if (p.companies_asked) {
-        p.companies_asked.forEach(c => uniqueCompanies.add(c.trim()));
-      }
       return {
         ...p,
-        sno: index + 1,
+        sno: p.sno || (index + 1),
         category: p.category || 'Uncategorized'
       };
     });
@@ -120,25 +128,33 @@ function loadState() {
   try {
     const savedData = localStorage.getItem(DATA_KEY);
     if (savedData) {
-      userData = JSON.parse(savedData);
-      if (!userData.starred) userData.starred = [];
-      if (!userData.completed) userData.completed = {};
-      if (!userData.opened) userData.opened = {};
-      if (!userData.notes) userData.notes = {};
-      if (!userData.skipped) userData.skipped = {};
+      const parsed = JSON.parse(savedData);
+      // Migrate old data if necessary
+      userData.reviewCount = parsed.reviewCount || {};
+      if (parsed.completed) {
+        Object.keys(parsed.completed).forEach(url => {
+          if (!userData.reviewCount[url]) {
+            userData.reviewCount[url] = { count: 1, lastDone: parsed.completed[url] };
+          }
+        });
+      }
+      userData.tags = parsed.tags || {};
+      if (parsed.starred) {
+        parsed.starred.forEach(url => {
+          if (!userData.tags[url]) userData.tags[url] = ['Great'];
+        });
+      }
+      userData.opened = parsed.opened || {};
+      userData.notes = parsed.notes || {};
+      userData.skipped = parsed.skipped || {};
+      userData.customQuestions = parsed.customQuestions || [];
     }
     const savedFilters = localStorage.getItem(FILTERS_KEY);
     if (savedFilters) {
       const parsed = JSON.parse(savedFilters);
-      if (parsed.companies) filters.companies = parsed.companies;
-      if (typeof parsed.starredOnly === 'boolean') filters.starredOnly = parsed.starredOnly;
+      if (parsed.tag !== undefined) filters.tag = parsed.tag;
       if (typeof parsed.showNotes === 'boolean') filters.showNotes = parsed.showNotes;
-      if (parsed.sortCol) filters.sortCol = parsed.sortCol;
-      if (parsed.sortDir) filters.sortDir = parsed.sortDir;
-      
-      starredCheckbox.checked = filters.starredOnly;
       showNotesCheckbox.checked = filters.showNotes;
-      companyAllCb.checked = filters.companies.length === 0;
     }
   } catch(e) {}
 }
@@ -153,15 +169,34 @@ function saveFilters() {
   localStorage.setItem(FILTERS_KEY, JSON.stringify(filters));
 }
 
-function toggleStar(url) {
-  if (userData.starred.includes(url)) {
-    userData.starred = userData.starred.filter(u => u !== url);
+window.incrementReview = function(url) {
+  if (!userData.reviewCount[url]) {
+    userData.reviewCount[url] = { count: 0, lastDone: getLocalDateString() };
+  }
+  userData.reviewCount[url].count += 1;
+  userData.reviewCount[url].lastDone = getLocalDateString();
+  saveUserData();
+  renderPuzzles();
+};
+
+window.toggleTag = function(url, tag, e) {
+  if (e) e.stopPropagation();
+  if (!userData.tags[url]) userData.tags[url] = [];
+  const idx = userData.tags[url].indexOf(tag);
+  if (idx > -1) {
+    userData.tags[url].splice(idx, 1);
   } else {
-    userData.starred.push(url);
+    userData.tags[url].push(tag);
   }
   saveUserData();
   renderPuzzles();
-}
+};
+
+window.openTagPopover = function(url, e) {
+  e.stopPropagation();
+  tagPopoverOpenFor = tagPopoverOpenFor === url ? null : url;
+  renderPuzzles();
+};
 
 window.toggleSkip = function(url) {
   if (userData.skipped[url]) {
@@ -173,37 +208,66 @@ window.toggleSkip = function(url) {
   renderPuzzles();
 };
 
-function toggleDone(url) {
-  if (userData.completed[url]) {
-    delete userData.completed[url];
-  } else {
-    userData.completed[url] = getLocalDateString();
-  }
-  saveUserData();
-  renderPuzzles();
-}
-
-function toggleNoteRow(url) {
+window.toggleNoteRow = function(url) {
   if (expandedNotes.has(url)) {
     expandedNotes.delete(url);
   } else {
     expandedNotes.add(url);
   }
   renderPuzzles();
-}
+};
 
-function markOpened(url) {
+window.markOpened = function(url) {
   userData.opened[url] = Date.now();
   saveUserData();
   renderPuzzles(); 
-}
+};
 
-function removeCurrentlySolving(url, e) {
+window.removeCurrentlySolving = function(url, e) {
   e.stopPropagation();
   e.preventDefault();
   delete userData.opened[url];
   saveUserData();
   renderPuzzles();
+};
+
+// MODAL UI LOGIC
+function setupAddModalLogic() {
+  const openModal = () => {
+    addModal.classList.add('open');
+    addModalOverlay.classList.add('open');
+    document.body.classList.add('no-scroll');
+  };
+  const closeModal = () => {
+    addModal.classList.remove('open');
+    addModalOverlay.classList.remove('open');
+    document.body.classList.remove('no-scroll');
+  };
+
+  openAddModalBtn.addEventListener('click', openModal);
+  addModalClose.addEventListener('click', closeModal);
+  addModalOverlay.addEventListener('click', closeModal);
+
+  saveCustomBtn.addEventListener('click', () => {
+    const url = document.getElementById('custom-url').value.trim();
+    const title = document.getElementById('custom-title').value.trim();
+    const category = document.getElementById('custom-category').value.trim() || 'Custom';
+
+    if (!url || !title) return alert("URL and Title are required.");
+
+    const newQuestion = { url, title, category, sno: allPuzzles.length + 1 };
+    userData.customQuestions.push(newQuestion);
+    allPuzzles.push(newQuestion);
+    
+    saveUserData();
+    closeModal();
+    
+    document.getElementById('custom-url').value = '';
+    document.getElementById('custom-title').value = '';
+    document.getElementById('custom-category').value = '';
+    
+    renderPuzzles();
+  });
 }
 
 // DRAWER UI LOGIC
@@ -213,7 +277,6 @@ function setupDrawerLogic() {
     drawerOverlay.classList.add('open');
     document.body.classList.add('no-scroll');
   };
-  
   const closeDrawer = () => {
     sideDrawer.classList.remove('open');
     drawerOverlay.classList.remove('open');
@@ -224,25 +287,12 @@ function setupDrawerLogic() {
   drawerClose.addEventListener('click', closeDrawer);
   drawerOverlay.addEventListener('click', closeDrawer);
 
-  companySearch.addEventListener('input', (e) => {
-    const term = e.target.value.toLowerCase();
-    document.querySelectorAll('.company-item').forEach(lbl => {
-      const text = lbl.textContent.toLowerCase();
-      lbl.style.display = text.includes(term) ? 'flex' : 'none';
-    });
-    
-    const resetBtn = document.getElementById('reset-progress-btn');
-    if (resetBtn) {
-      resetBtn.style.display = term ? 'none' : 'block';
-    }
-  });
-
   const resetBtn = document.getElementById('reset-progress-btn');
   if (resetBtn) {
     resetBtn.addEventListener('click', () => {
       if (confirm("Are you sure you want to completely reset all your progress? This cannot be undone.")) {
-        userData.completed = {};
-        userData.starred = [];
+        userData.reviewCount = {};
+        userData.tags = {};
         userData.opened = {};
         userData.notes = {};
         userData.skipped = {};
@@ -255,63 +305,49 @@ function setupDrawerLogic() {
   const randomBtnToggle = document.getElementById('random-btn-toggle');
   if (randomBtnToggle) {
     randomBtnToggle.addEventListener('change', (e) => {
-      const btn = document.getElementById('random-btn');
-      if (btn) btn.style.display = e.target.checked ? 'block' : 'none';
+      randomBtn.style.display = e.target.checked ? 'inline-flex' : 'none';
     });
   }
 }
 
-function populateCompanyDropdown() {
-  const companies = Array.from(uniqueCompanies).sort((a, b) => a.localeCompare(b));
-  
-  companyAllCb.addEventListener('change', (e) => {
-    if (e.target.checked) {
-      filters.companies = [];
-      document.querySelectorAll('.company-cb').forEach(cb => cb.checked = false);
-      saveFilters();
-      renderPuzzles();
-    } else {
-      if (filters.companies.length === 0) e.target.checked = true;
-    }
-  });
-
-  companies.forEach(c => {
-    const label = document.createElement('label');
-    label.className = 'matte-checkbox menu-item company-item';
-    
-    const isChecked = filters.companies.includes(c);
-    
-    label.innerHTML = `
-      <input type="checkbox" class="company-cb" value="${c}" ${isChecked ? 'checked' : ''}>
-      <span class="checkmark"></span>
-      ${c}
-    `;
-    companyList.appendChild(label);
-  });
-
-  document.querySelectorAll('.company-cb').forEach(cb => {
-    cb.addEventListener('change', () => {
-      const checkedBoxes = Array.from(document.querySelectorAll('.company-cb:checked')).map(el => el.value);
-      filters.companies = checkedBoxes;
-      companyAllCb.checked = checkedBoxes.length === 0;
-      saveFilters();
-      renderPuzzles();
-    });
-  });
-}
-
 function setupDropdownLogic() {
-  starredCheckbox.addEventListener('change', () => {
-    filters.starredOnly = starredCheckbox.checked;
-    saveFilters();
-    renderPuzzles();
-  });
+  const btn = tagFilterDropdown.querySelector('.dropdown-btn');
   
+  const updateBtnText = () => {
+    btn.innerHTML = filters.tag ? `Tag: ${filters.tag} <span class="arrow">▼</span>` : `Filter by Tag <span class="arrow">▼</span>`;
+  };
+  
+  const buildMenu = () => {
+    tagFilterMenu.innerHTML = `
+      <div class="dropdown-item" onclick="setTagFilter(null)">All Tags</div>
+      ${PREDEFINED_TAGS.map(t => `<div class="dropdown-item" onclick="setTagFilter('${t}')">${t}</div>`).join('')}
+    `;
+  };
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    tagFilterDropdown.classList.toggle('open');
+  });
+
+  document.addEventListener('click', () => {
+    tagFilterDropdown.classList.remove('open');
+  });
+
+  window.setTagFilter = function(tag) {
+    filters.tag = tag;
+    saveFilters();
+    updateBtnText();
+    renderPuzzles();
+  };
+
   showNotesCheckbox.addEventListener('change', () => {
     filters.showNotes = showNotesCheckbox.checked;
     saveFilters();
     renderPuzzles();
   });
+
+  buildMenu();
+  updateBtnText();
 }
 
 function setupColumnToggles() {
@@ -327,7 +363,7 @@ function setupColumnToggles() {
 function setupRandomBtn() {
   randomBtn.addEventListener('click', () => {
     const puzzles = getProcessedPuzzles();
-    const unsolved = puzzles.filter(p => !userData.completed[p.url]);
+    const unsolved = puzzles.filter(p => !userData.reviewCount[p.url] || userData.reviewCount[p.url].count === 0);
     
     if (unsolved.length === 0) {
       randomContainer.innerHTML = '<div style="padding:1rem; color:var(--text-muted)">You solved all visible questions!</div>';
@@ -336,56 +372,25 @@ function setupRandomBtn() {
 
     const rnd = unsolved[Math.floor(Math.random() * unsolved.length)];
     
-    let companiesText = '';
-    if (rnd.companies_asked && rnd.companies_asked.length > 0) {
-      companiesText = rnd.companies_asked.join(', ');
-    }
-
     randomContainer.innerHTML = `
-      <div class="section-container" style="margin-bottom: 1rem;">
-        <div class="section-header" style="color:var(--accent-color); font-size:0.9rem; display:flex; justify-content:space-between; border-bottom:1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 0.5rem;">
-          <span>🎲 Your Random Challenge</span>
-          <button id="close-random-btn" style="background:none; border:none; color:var(--text-muted); cursor:pointer;">✖</button>
-        </div>
-        <div class="table-responsive">
-          <table class="data-table">
-            <tbody>
-              <tr>
-                ${visibleColumns.note ? `<td class="col-note">
-                  <button class="btn-icon ${userData.notes[rnd.url] ? 'active' : ''}" style="${userData.notes[rnd.url] ? 'color: var(--accent-color);' : ''}" onclick="toggleNoteRow('${rnd.url}')">✎</button>
-                </td>` : ''}
-                ${visibleColumns.star ? `<td class="col-star">
-                  <button class="btn-icon btn-star ${userData.starred.includes(rnd.url) ? 'active' : ''}" onclick="toggleStar('${rnd.url}')">${userData.starred.includes(rnd.url) ? '★' : '☆'}</button>
-                </td>` : ''}
-                <td class="col-done"><button class="btn-done-box" onclick="toggleDone('${rnd.url}'); document.getElementById('random-question-container').innerHTML=''">✓</button></td>
-                <td class="col-title"><a href="${rnd.url}" target="_blank" class="puzzle-link" onclick="markOpened('${rnd.url}')">${rnd.sno}. ${rnd.title}</a></td>
-                ${visibleColumns.category ? `<td class="col-category"><span class="badge ${rnd.category.replace(/ /g, '-').toLowerCase()}">${rnd.category}</span></td>` : ''}
-                ${visibleColumns.companies ? `<td class="col-companies">${(rnd.companies_asked || []).join(', ')}</td>` : ''}
-                <td class="col-skip"><button class="btn-skip" onclick="toggleSkip('${rnd.url}')">Skip</button></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+      <div class="list-header" style="display:flex; justify-content:space-between;">
+        <span>🎲 Your Random Challenge</span>
+        <button id="close-random-btn" style="background:none; border:none; color:var(--text-muted); cursor:pointer;">✖</button>
+      </div>
+      <div class="puzzle-list" style="margin-bottom: 2rem;">
+        ${createCardHTML(rnd, false)}
       </div>
     `;
     
     randomContainer.querySelector('#close-random-btn').addEventListener('click', () => {
       randomContainer.innerHTML = '';
     });
-    
-    const starBtn = randomContainer.querySelector('.btn-star');
-    if (starBtn) {
-      starBtn.addEventListener('click', () => {
-        starBtn.classList.toggle('active');
-        starBtn.textContent = starBtn.classList.contains('active') ? '★' : '☆';
-      });
-    }
   });
 }
 
 // RENDERING
 function renderTopIndicator() {
-  const solved = Object.keys(userData.completed).length;
+  const solved = Object.values(userData.reviewCount).filter(rc => rc.count > 0).length;
   const unsolved = allPuzzles.length - solved;
   solvedCountEl.textContent = solved;
   unsolvedCountEl.textContent = unsolved;
@@ -393,10 +398,11 @@ function renderTopIndicator() {
 
 function renderHeatmap() {
   heatmapContainer.innerHTML = '';
-  
   const activity = {};
-  Object.values(userData.completed).forEach(date => {
-    activity[date] = (activity[date] || 0) + 1;
+  Object.values(userData.reviewCount).forEach(rc => {
+    if (rc.count > 0 && rc.lastDone) {
+      activity[rc.lastDone] = (activity[rc.lastDone] || 0) + 1;
+    }
   });
 
   const grid = document.createElement('div');
@@ -413,61 +419,51 @@ function renderHeatmap() {
   days.forEach(dateStr => {
     const count = activity[dateStr] || 0;
     const cell = document.createElement('div');
-    cell.className = 'heatmap-cell heat-0';
-    
-    if (count > 0 && count <= 2) cell.className = 'heatmap-cell heat-1';
-    else if (count > 2 && count <= 5) cell.className = 'heatmap-cell heat-2';
-    else if (count > 5 && count <= 8) cell.className = 'heatmap-cell heat-3';
-    else if (count > 8) cell.className = 'heatmap-cell heat-4';
-
-    cell.setAttribute('data-title', `${dateStr}: ${count} solved`);
-    if (count > 0) {
-      cell.textContent = count;
-    }
-    
+    cell.className = 'heatmap-cell';
+    if (count > 0) cell.setAttribute('data-count', Math.min(count, 5));
+    cell.setAttribute('data-title', `${dateStr}: ${count} reviews`);
     grid.appendChild(cell);
   });
 
   heatmapContainer.appendChild(grid);
 }
 
-function handleSort(column) {
-  if (filters.sortCol === column) {
-    filters.sortDir = filters.sortDir === 'asc' ? 'desc' : 'asc';
-  } else {
-    filters.sortCol = column;
-    filters.sortDir = 'asc';
-  }
-  saveFilters();
-  renderPuzzles();
-}
-
-function getSortIcon(col) {
-  if (filters.sortCol !== col) return '';
-  return filters.sortDir === 'asc' ? ' ▲' : ' ▼';
-}
-
 function getProcessedPuzzles() {
   return allPuzzles.filter(p => {
-    if (filters.starredOnly && !userData.starred.includes(p.url)) return false;
-    if (filters.companies.length > 0) {
-      if (!p.companies_asked) return false;
-      const match = p.companies_asked.some(c => filters.companies.includes(c.trim()));
-      if (!match) return false;
+    if (filters.tag) {
+      const pTags = userData.tags[p.url] || [];
+      if (!pTags.includes(filters.tag)) return false;
     }
     return true;
   });
 }
 
-function createRowHTML(p, isCurrentlySolving = false) {
-  const isDone = !!userData.completed[p.url];
-  const isStarred = userData.starred.includes(p.url);
-  const hasNote = !!userData.notes[p.url];
+function renderTagBadges(url) {
+  const pTags = userData.tags[url] || [];
+  let html = '';
+  pTags.forEach(t => {
+    const cls = `badge-${t.toLowerCase()}`;
+    html += `<span class="badge badge-tag ${cls}" onclick="toggleTag('${url}', '${t}', event)">${t} ✖</span>`;
+  });
   
-  let companiesText = '';
-  if (p.companies_asked && p.companies_asked.length > 0) {
-    companiesText = p.companies_asked.join(', ');
+  html += `<span class="badge badge-add" onclick="openTagPopover('${url}', event)">+ Add Tag</span>`;
+  
+  if (tagPopoverOpenFor === url) {
+    const opts = PREDEFINED_TAGS.map(t => {
+      const has = pTags.includes(t);
+      return `<label class="matte-checkbox" style="padding: 0.25rem;"><input type="checkbox" ${has?'checked':''} onchange="toggleTag('${url}','${t}', event)"><span class="checkmark" style="width:14px;height:14px;"></span> ${t}</label>`;
+    }).join('');
+    html += `<div class="tag-popover" onclick="event.stopPropagation()">${opts}</div>`;
   }
+  
+  return html;
+}
+
+function createCardHTML(p, isCurrentlySolving = false) {
+  const rc = userData.reviewCount[p.url] || { count: 0 };
+  const isDone = rc.count > 0;
+  const hasNote = !!userData.notes[p.url];
+  const isExpanded = expandedNotes.has(p.url) || (filters.showNotes && hasNote);
 
   let dismissBtn = '';
   if (isCurrentlySolving) {
@@ -475,83 +471,58 @@ function createRowHTML(p, isCurrentlySolving = false) {
   }
 
   return `
-    ${visibleColumns.note ? `<td class="col-note">
-      <button class="btn-icon ${hasNote ? 'active' : ''}" style="${hasNote ? 'color: var(--accent-color);' : ''}" onclick="toggleNoteRow('${p.url}')">✎</button>
-    </td>` : ''}
-    ${visibleColumns.star ? `<td class="col-star">
-      <button class="btn-icon btn-star ${isStarred ? 'active' : ''}" data-url="${p.url}">${isStarred ? '★' : '☆'}</button>
-    </td>` : ''}
-    <td class="col-done">
-      <button class="btn-done-box ${isDone ? 'active' : ''}" data-url="${p.url}">✓</button>
-    </td>
-    <td class="col-title"><a href="${p.url}" target="_blank" class="puzzle-link" onclick="markOpened('${p.url}')">${p.sno}. ${p.title}</a>${dismissBtn}</td>
-    ${visibleColumns.category ? `<td class="col-category"><span class="badge ${p.category.replace(/ /g, '-').toLowerCase()}">${p.category}</span></td>` : ''}
-    ${visibleColumns.companies ? `<td class="col-companies">${(p.companies_asked || []).join(', ')}</td>` : ''}
-    <td class="col-skip">
-      <button class="btn-skip ${userData.skipped[p.url] ? 'active' : ''}" onclick="toggleSkip('${p.url}')">Skip</button>
-    </td>
+    <div class="puzzle-card ${isDone ? 'is-done' : ''}">
+      <div class="col-done">
+        <button class="btn-review-count ${isDone ? 'active' : ''}" onclick="incrementReview('${p.url}')" title="Increment review count">
+          ${isDone ? '✓ ' + rc.count : '✓'}
+        </button>
+      </div>
+      
+      <div class="col-main">
+        <div>
+          <a href="${p.url}" target="_blank" class="puzzle-link" onclick="markOpened('${p.url}')">${p.sno}. ${p.title}</a>${dismissBtn}
+        </div>
+        <div class="puzzle-meta">
+          ${visibleColumns.category ? `<span class="badge badge-cat">${p.category}</span>` : ''}
+          ${userData.skipped[p.url] ? `<span class="badge badge-review">Skipped</span>` : ''}
+        </div>
+      </div>
+      
+      ${visibleColumns.tags ? `
+      <div class="col-tags tags-container" style="position:relative;">
+        ${renderTagBadges(p.url)}
+      </div>
+      ` : ''}
+      
+      <div class="col-actions">
+        ${visibleColumns.note ? `
+        <button class="btn-icon ${hasNote ? 'active-note' : ''}" onclick="toggleNoteRow('${p.url}')" title="Notes">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        </button>
+        ` : ''}
+        <button class="btn-icon" onclick="toggleSkip('${p.url}')" title="Toggle Skip">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+        </button>
+      </div>
+      
+      ${isExpanded ? `
+      <div class="note-container">
+        <textarea class="note-input" placeholder="Write your notes here..." oninput="updateNote('${p.url}', this.value)">${userData.notes[p.url] || ''}</textarea>
+      </div>
+      ` : ''}
+    </div>
   `;
 }
 
-function attachRowListeners(tr, p) {
-  const doneBtn = tr.querySelector('.btn-done-box');
-  if (doneBtn) doneBtn.addEventListener('click', () => toggleDone(p.url));
-
-  const starBtn = tr.querySelector('.btn-star');
-  if (starBtn) starBtn.addEventListener('click', () => toggleStar(p.url));
-}
-
-function getColCount() {
-  let colCount = 3; // done + title + skip
-  if (visibleColumns.note) colCount++;
-  if (visibleColumns.star) colCount++;
-  if (visibleColumns.category) colCount++;
-  if (visibleColumns.companies) colCount++;
-  return colCount;
-}
-
-function appendNoteRowIfNeeded(tbody, p, colCount) {
-  const isExpanded = expandedNotes.has(p.url) || (filters.showNotes && !!userData.notes[p.url]);
-  if (!isExpanded) return;
-  
-  const tr = document.createElement('tr');
-  tr.className = 'note-row';
-  
-  const td = document.createElement('td');
-  td.colSpan = colCount;
-  
-  const textarea = document.createElement('textarea');
-  textarea.className = 'note-input';
-  textarea.placeholder = 'Write your notes here...';
-  textarea.value = userData.notes[p.url] || '';
-  
-  // Auto-resize
-  textarea.addEventListener('input', () => {
-    textarea.style.height = 'auto';
-    textarea.style.height = (textarea.scrollHeight + 2) + 'px';
-  });
-  
-  // Save on blur or input
-  textarea.addEventListener('input', (e) => {
-    const val = e.target.value.trim();
-    if (val) {
-      userData.notes[p.url] = val;
-    } else {
-      delete userData.notes[p.url];
-    }
-    saveUserData();
-  });
-  
-  td.appendChild(textarea);
-  tr.appendChild(td);
-  tbody.appendChild(tr);
-  
-  // Initial resize
-  requestAnimationFrame(() => {
-    textarea.style.height = 'auto';
-    textarea.style.height = (textarea.scrollHeight + 2) + 'px';
-  });
-}
+window.updateNote = function(url, val) {
+  const trimmed = val.trim();
+  if (trimmed) {
+    userData.notes[url] = trimmed;
+  } else {
+    delete userData.notes[url];
+  }
+  saveUserData();
+};
 
 function renderPuzzles() {
   puzzlesContainer.innerHTML = '';
@@ -563,127 +534,35 @@ function renderPuzzles() {
     return;
   }
 
-  // Split into "Currently Solving" (Unsolved + Opened) and "Others"
   const currentlySolving = [];
   const others = [];
   
   puzzles.forEach(p => {
-    if (!userData.completed[p.url] && userData.opened[p.url]) {
+    const rc = userData.reviewCount[p.url] || { count: 0 };
+    if (rc.count === 0 && userData.opened[p.url]) {
       currentlySolving.push(p);
     } else {
       others.push(p);
     }
   });
 
-  // Sort Currently Solving (Newest Opened First)
   currentlySolving.sort((a, b) => userData.opened[b.url] - userData.opened[a.url]);
 
-  // Sort Others normally based on headers
-  others.sort((a, b) => {
-    let valA, valB;
-    if (filters.sortCol === 'done') {
-      const getStatus = (u) => {
-        if (userData.completed[u]) return Infinity;
-        if (userData.skipped[u]) return userData.skipped[u];
-        return 0;
-      };
-      valA = getStatus(a.url);
-      valB = getStatus(b.url);
-    } else if (filters.sortCol === 'star') {
-      valA = userData.starred.includes(a.url) ? 1 : 0;
-      valB = userData.starred.includes(b.url) ? 1 : 0;
-    } else if (filters.sortCol === 'title') {
-      valA = a.title.toLowerCase();
-      valB = b.title.toLowerCase();
-    } else if (filters.sortCol === 'category') {
-      valA = categoryOrder.indexOf(a.category);
-      valB = categoryOrder.indexOf(b.category);
-    } else if (filters.sortCol === 'companies') {
-      valA = (a.companies_asked || []).join(', ').toLowerCase();
-      valB = (b.companies_asked || []).join(', ').toLowerCase();
-    }
-
-    if (valA < valB) return filters.sortDir === 'asc' ? -1 : 1;
-    if (valA > valB) return filters.sortDir === 'asc' ? 1 : -1;
-    
-    return a.sno - b.sno; 
-  });
-
-  const colCount = getColCount();
-
-  // 1. Render "Currently Solving"
   if (currentlySolving.length > 0) {
-    const csWrapper = document.createElement('div');
-    csWrapper.className = 'table-responsive';
-    csWrapper.style.marginBottom = '2rem';
-
-    const csTitle = document.createElement('div');
-    csTitle.style.cssText = 'color: var(--accent-color); font-weight: 700; text-transform: uppercase; letter-spacing: 1px; font-size: 0.8rem; margin-bottom: 0.5rem;';
-    csTitle.textContent = 'Currently Solving';
-    csWrapper.appendChild(csTitle);
-
-    const tableCS = document.createElement('table');
-    tableCS.className = 'data-table';
-    
-    const tbodyCS = document.createElement('tbody');
-    currentlySolving.forEach(p => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = createRowHTML(p, true);
-      attachRowListeners(tr, p);
-      tbodyCS.appendChild(tr);
-      appendNoteRowIfNeeded(tbodyCS, p, colCount);
-    });
-    tableCS.appendChild(tbodyCS);
-    csWrapper.appendChild(tableCS);
-    currentlySolvingContainer.appendChild(csWrapper);
+    currentlySolvingContainer.innerHTML = `
+      <div class="list-header">CURRENTLY SOLVING</div>
+      <div class="puzzle-list" style="margin-bottom: 2rem;">
+        ${currentlySolving.map(p => createCardHTML(p, true)).join('')}
+      </div>
+    `;
   }
 
-  // 2. Render Main Table
-  const mainWrapper = document.createElement('div');
-  mainWrapper.className = 'table-responsive';
-
-  const tableMain = document.createElement('table');
-  tableMain.className = 'data-table';
-  
-  const thead = document.createElement('thead');
-  const isCol = (c) => filters.sortCol === c ? 'active-sort' : '';
-  
-  thead.innerHTML = `
-    <tr>
-      ${visibleColumns.note ? `<th class="col-note" style="width: 50px;">Note</th>` : ''}
-      ${visibleColumns.star ? `<th class="sortable col-star ${isCol('star')}" data-col="star" style="width: 50px;">Star${getSortIcon('star')}</th>` : ''}
-      <th class="sortable col-done ${isCol('done')}" data-col="done">Done${getSortIcon('done')}</th>
-      <th class="sortable col-title ${isCol('title')}" data-col="title">Title${getSortIcon('title')}</th>
-      ${visibleColumns.category ? `<th class="sortable col-category ${isCol('category')}" data-col="category">Category${getSortIcon('category')}</th>` : ''}
-      ${visibleColumns.companies ? `<th class="sortable col-companies ${isCol('companies')}" data-col="companies">Companies${getSortIcon('companies')}</th>` : ''}
-      <th class="col-skip" style="width: 60px;">Skip</th>
-    </tr>
+  puzzlesContainer.innerHTML = `
+    <div class="list-header">ALL PUZZLES</div>
+    <div class="puzzle-list">
+      ${others.map(p => createCardHTML(p, false)).join('')}
+    </div>
   `;
-  
-  thead.querySelectorAll('.sortable').forEach(th => {
-    th.addEventListener('click', () => handleSort(th.getAttribute('data-col')));
-  });
-  tableMain.appendChild(thead);
-
-  const tbodyOthers = document.createElement('tbody');
-  others.forEach(p => {
-    const tr = document.createElement('tr');
-    if (!!userData.completed[p.url]) tr.classList.add('is-done');
-    tr.innerHTML = createRowHTML(p, false);
-    attachRowListeners(tr, p);
-    tbodyOthers.appendChild(tr);
-    appendNoteRowIfNeeded(tbodyOthers, p, colCount);
-  });
-  tableMain.appendChild(tbodyOthers);
-
-  mainWrapper.appendChild(tableMain);
-  puzzlesContainer.appendChild(mainWrapper);
 }
-
-window.toggleDone = toggleDone;
-window.toggleStar = toggleStar;
-window.markOpened = markOpened;
-window.removeCurrentlySolving = removeCurrentlySolving;
-window.toggleNoteRow = toggleNoteRow;
 
 document.addEventListener('DOMContentLoaded', init);
