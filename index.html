@@ -20,6 +20,17 @@
     </div>
 
     <div class="drawer-section">
+      <h3 class="drawer-section-title">Manage Tags</h3>
+      <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+        <input type="text" id="new-tag-input" class="matte-input" placeholder="New Tag Name">
+        <button class="matte-btn btn-primary" id="add-tag-btn">+</button>
+      </div>
+      <div id="tag-manager-list" style="display: flex; flex-direction: column; gap: 0.5rem;">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <div class="drawer-section">
       <h3 class="drawer-section-title">Show / Hide Columns</h3>
       <label class="matte-checkbox menu-item">
         <input type="checkbox" class="col-toggle" value="note" checked>
@@ -98,6 +109,18 @@
         <div class="box-title">CONTROLS</div>
         <div class="box-content">
           <div class="controls-top-row">
+            
+            <div class="custom-dropdown" id="sort-filter-dropdown">
+              <button class="dropdown-btn">Sort By: Done (Asc) <span class="arrow">▼</span></button>
+              <div class="dropdown-menu" id="sort-filter-menu">
+                <div class="dropdown-item" onclick="setSortFilter('done', 'asc')">Done (Asc)</div>
+                <div class="dropdown-item" onclick="setSortFilter('done', 'desc')">Done (Desc)</div>
+                <div class="dropdown-item" onclick="setSortFilter('sno', 'asc')">Sno (Asc)</div>
+                <div class="dropdown-item" onclick="setSortFilter('title', 'asc')">Title (A-Z)</div>
+                <div class="dropdown-item" onclick="setSortFilter('category', 'asc')">Category (A-Z)</div>
+              </div>
+            </div>
+
             <div class="custom-dropdown" id="tag-filter-dropdown">
               <button class="dropdown-btn">Filter by Tag <span class="arrow">▼</span></button>
               <div class="dropdown-menu" id="tag-filter-menu">

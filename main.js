@@ -4,18 +4,23 @@ const FILTERS_KEY = 'gfgTrackerFilters';
 let allPuzzles = [];
 let categoryOrder = [];
 
+const DEFAULT_TAGS = ['Great', 'Good', 'Trivial', 'Hard', 'Review'];
+
 let userData = {
-  reviewCount: {}, // { url: count }
+  reviewCount: {}, // { url: { count, lastDone } }
   tags: {},        // { url: ['Great'] }
   opened: {},
   notes: {},
   skipped: {},
-  customQuestions: [] // [{ url, title, category, sno }]
+  customQuestions: [], // [{ url, title, category, sno }]
+  customTags: []       // ['Great', 'Good', ...]
 };
 
 let filters = {
   tag: null, // null means all
-  showNotes: false
+  showNotes: false,
+  sort: 'done',
+  sortDir: 'asc'
 };
 
 let expandedNotes = new Set();
@@ -27,8 +32,6 @@ let visibleColumns = {
   category: true
 };
 
-const PREDEFINED_TAGS = ['Great', 'Good', 'Trivial', 'Hard', 'Review'];
-
 // DOM
 const puzzlesContainer = document.getElementById('puzzles-container');
 const currentlySolvingContainer = document.getElementById('currently-solving-container');
@@ -38,6 +41,9 @@ const solvedCountEl = document.getElementById('solved-count');
 
 const tagFilterDropdown = document.getElementById('tag-filter-dropdown');
 const tagFilterMenu = document.getElementById('tag-filter-menu');
+const sortFilterDropdown = document.getElementById('sort-filter-dropdown');
+const sortFilterMenu = document.getElementById('sort-filter-menu');
+
 const showNotesCheckbox = document.getElementById('show-notes-filter');
 const randomBtn = document.getElementById('random-btn');
 const randomContainer = document.getElementById('random-question-container');
@@ -53,6 +59,10 @@ const openAddModalBtn = document.getElementById('open-add-modal-btn');
 const addModalClose = document.getElementById('add-modal-close');
 const saveCustomBtn = document.getElementById('save-custom-btn');
 
+const tagManagerList = document.getElementById('tag-manager-list');
+const newTagInput = document.getElementById('new-tag-input');
+const addTagBtn = document.getElementById('add-tag-btn');
+
 function getLocalDateString(dateObj = new Date()) {
   const offset = dateObj.getTimezoneOffset() * 60000;
   return new Date(dateObj.getTime() - offset).toISOString().split('T')[0];
@@ -60,10 +70,15 @@ function getLocalDateString(dateObj = new Date()) {
 
 async function init() {
   loadState();
+  if (!userData.customTags || userData.customTags.length === 0) {
+    userData.customTags = [...DEFAULT_TAGS];
+  }
   await fetchPuzzles();
   setupDrawerLogic();
+  setupTagManager();
   setupAddModalLogic();
   setupDropdownLogic();
+  setupSortDropdownLogic();
   setupColumnToggles();
   setupRandomBtn();
   renderTopIndicator();
@@ -129,31 +144,21 @@ function loadState() {
     const savedData = localStorage.getItem(DATA_KEY);
     if (savedData) {
       const parsed = JSON.parse(savedData);
-      // Migrate old data if necessary
       userData.reviewCount = parsed.reviewCount || {};
-      if (parsed.completed) {
-        Object.keys(parsed.completed).forEach(url => {
-          if (!userData.reviewCount[url]) {
-            userData.reviewCount[url] = { count: 1, lastDone: parsed.completed[url] };
-          }
-        });
-      }
       userData.tags = parsed.tags || {};
-      if (parsed.starred) {
-        parsed.starred.forEach(url => {
-          if (!userData.tags[url]) userData.tags[url] = ['Great'];
-        });
-      }
       userData.opened = parsed.opened || {};
       userData.notes = parsed.notes || {};
       userData.skipped = parsed.skipped || {};
       userData.customQuestions = parsed.customQuestions || [];
+      userData.customTags = parsed.customTags || [];
     }
     const savedFilters = localStorage.getItem(FILTERS_KEY);
     if (savedFilters) {
       const parsed = JSON.parse(savedFilters);
       if (parsed.tag !== undefined) filters.tag = parsed.tag;
       if (typeof parsed.showNotes === 'boolean') filters.showNotes = parsed.showNotes;
+      if (parsed.sort) filters.sort = parsed.sort;
+      if (parsed.sortDir) filters.sortDir = parsed.sortDir;
       showNotesCheckbox.checked = filters.showNotes;
     }
   } catch(e) {}
@@ -171,10 +176,16 @@ function saveFilters() {
 
 window.incrementReview = function(url) {
   if (!userData.reviewCount[url]) {
-    userData.reviewCount[url] = { count: 0, lastDone: getLocalDateString() };
+    userData.reviewCount[url] = { count: 0, lastDone: null };
   }
   userData.reviewCount[url].count += 1;
   userData.reviewCount[url].lastDone = getLocalDateString();
+  
+  // Remove from currently solving automatically when marked done
+  if (userData.opened[url]) {
+    delete userData.opened[url];
+  }
+  
   saveUserData();
   renderPuzzles();
 };
@@ -231,6 +242,41 @@ window.removeCurrentlySolving = function(url, e) {
   renderPuzzles();
 };
 
+// TAG MANAGER
+function setupTagManager() {
+  const renderTagManager = () => {
+    tagManagerList.innerHTML = userData.customTags.map((tag, idx) => `
+      <div class="tag-list-item">
+        <span>${tag}</span>
+        <button class="btn-icon" style="padding:0; color:var(--danger);" onclick="deleteCustomTag(${idx})">✖</button>
+      </div>
+    `).join('');
+    // Rebuild tag filter menu
+    buildTagFilterMenu();
+  };
+
+  window.deleteCustomTag = function(idx) {
+    if (confirm(`Delete tag "${userData.customTags[idx]}"?`)) {
+      userData.customTags.splice(idx, 1);
+      saveUserData();
+      renderTagManager();
+      renderPuzzles();
+    }
+  };
+
+  addTagBtn.addEventListener('click', () => {
+    const val = newTagInput.value.trim();
+    if (val && !userData.customTags.includes(val)) {
+      userData.customTags.push(val);
+      saveUserData();
+      newTagInput.value = '';
+      renderTagManager();
+    }
+  });
+
+  renderTagManager();
+}
+
 // MODAL UI LOGIC
 function setupAddModalLogic() {
   const openModal = () => {
@@ -258,6 +304,9 @@ function setupAddModalLogic() {
     const newQuestion = { url, title, category, sno: allPuzzles.length + 1 };
     userData.customQuestions.push(newQuestion);
     allPuzzles.push(newQuestion);
+    
+    // Add to currently solving automatically
+    userData.opened[url] = Date.now();
     
     saveUserData();
     closeModal();
@@ -310,23 +359,24 @@ function setupDrawerLogic() {
   }
 }
 
+function buildTagFilterMenu() {
+  tagFilterMenu.innerHTML = `
+    <div class="dropdown-item" onclick="setTagFilter(null)">All Tags</div>
+    ${userData.customTags.map(t => `<div class="dropdown-item" onclick="setTagFilter('${t}')">${t}</div>`).join('')}
+  `;
+}
+
 function setupDropdownLogic() {
   const btn = tagFilterDropdown.querySelector('.dropdown-btn');
   
   const updateBtnText = () => {
     btn.innerHTML = filters.tag ? `Tag: ${filters.tag} <span class="arrow">▼</span>` : `Filter by Tag <span class="arrow">▼</span>`;
   };
-  
-  const buildMenu = () => {
-    tagFilterMenu.innerHTML = `
-      <div class="dropdown-item" onclick="setTagFilter(null)">All Tags</div>
-      ${PREDEFINED_TAGS.map(t => `<div class="dropdown-item" onclick="setTagFilter('${t}')">${t}</div>`).join('')}
-    `;
-  };
 
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
     tagFilterDropdown.classList.toggle('open');
+    sortFilterDropdown.classList.remove('open');
   });
 
   document.addEventListener('click', () => {
@@ -346,7 +396,41 @@ function setupDropdownLogic() {
     renderPuzzles();
   });
 
-  buildMenu();
+  buildTagFilterMenu();
+  updateBtnText();
+}
+
+function setupSortDropdownLogic() {
+  const btn = sortFilterDropdown.querySelector('.dropdown-btn');
+  
+  const updateBtnText = () => {
+    let lbl = '';
+    if (filters.sort === 'done') lbl = 'Done';
+    if (filters.sort === 'sno') lbl = 'Sno';
+    if (filters.sort === 'title') lbl = 'Title';
+    if (filters.sort === 'category') lbl = 'Category';
+    const dirLbl = filters.sortDir === 'asc' ? '(Asc)' : '(Desc)';
+    btn.innerHTML = `Sort By: ${lbl} ${dirLbl} <span class="arrow">▼</span>`;
+  };
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    sortFilterDropdown.classList.toggle('open');
+    tagFilterDropdown.classList.remove('open');
+  });
+
+  document.addEventListener('click', () => {
+    sortFilterDropdown.classList.remove('open');
+  });
+
+  window.setSortFilter = function(sortCol, dir) {
+    filters.sort = sortCol;
+    filters.sortDir = dir;
+    saveFilters();
+    updateBtnText();
+    renderPuzzles();
+  };
+  
   updateBtnText();
 }
 
@@ -420,7 +504,10 @@ function renderHeatmap() {
     const count = activity[dateStr] || 0;
     const cell = document.createElement('div');
     cell.className = 'heatmap-cell';
-    if (count > 0) cell.setAttribute('data-count', Math.min(count, 5));
+    if (count > 0) {
+      cell.setAttribute('data-count', Math.min(count, 5));
+      cell.textContent = count;
+    }
     cell.setAttribute('data-title', `${dateStr}: ${count} reviews`);
     grid.appendChild(cell);
   });
@@ -446,10 +533,10 @@ function renderTagBadges(url) {
     html += `<span class="badge badge-tag ${cls}" onclick="toggleTag('${url}', '${t}', event)">${t} ✖</span>`;
   });
   
-  html += `<span class="badge badge-add" onclick="openTagPopover('${url}', event)">+ Add Tag</span>`;
+  html += `<span class="badge badge-add" onclick="openTagPopover('${url}', event)">+ Tag</span>`;
   
   if (tagPopoverOpenFor === url) {
-    const opts = PREDEFINED_TAGS.map(t => {
+    const opts = userData.customTags.map(t => {
       const has = pTags.includes(t);
       return `<label class="matte-checkbox" style="padding: 0.25rem;"><input type="checkbox" ${has?'checked':''} onchange="toggleTag('${url}','${t}', event)"><span class="checkmark" style="width:14px;height:14px;"></span> ${t}</label>`;
     }).join('');
@@ -472,10 +559,26 @@ function createCardHTML(p, isCurrentlySolving = false) {
 
   return `
     <div class="puzzle-card ${isDone ? 'is-done' : ''}">
-      <div class="col-done">
-        <button class="btn-review-count ${isDone ? 'active' : ''}" onclick="incrementReview('${p.url}')" title="Increment review count">
-          ${isDone ? '✓ ' + rc.count : '✓'}
+      <div class="col-actions">
+        ${visibleColumns.note ? `
+        <button class="btn-icon ${hasNote ? 'active-note' : ''}" onclick="toggleNoteRow('${p.url}')" title="Notes">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
         </button>
+        ` : ''}
+        
+        ${visibleColumns.tags ? `
+        <div class="tags-container" style="position:relative; margin-left: 0.25rem;">
+          ${renderTagBadges(p.url)}
+        </div>
+        ` : ''}
+      </div>
+
+      <div class="col-done">
+        <button class="btn-check ${isDone ? 'active' : ''}" onclick="incrementReview('${p.url}')" title="Mark Done">✓</button>
+      </div>
+
+      <div class="col-count">
+        ${rc.count}
       </div>
       
       <div class="col-main">
@@ -488,18 +591,7 @@ function createCardHTML(p, isCurrentlySolving = false) {
         </div>
       </div>
       
-      ${visibleColumns.tags ? `
-      <div class="col-tags tags-container" style="position:relative;">
-        ${renderTagBadges(p.url)}
-      </div>
-      ` : ''}
-      
-      <div class="col-actions">
-        ${visibleColumns.note ? `
-        <button class="btn-icon ${hasNote ? 'active-note' : ''}" onclick="toggleNoteRow('${p.url}')" title="Notes">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-        </button>
-        ` : ''}
+      <div class="col-skip">
         <button class="btn-icon" onclick="toggleSkip('${p.url}')" title="Toggle Skip">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
         </button>
@@ -538,8 +630,8 @@ function renderPuzzles() {
   const others = [];
   
   puzzles.forEach(p => {
-    const rc = userData.reviewCount[p.url] || { count: 0 };
-    if (rc.count === 0 && userData.opened[p.url]) {
+    // If it is in userData.opened, put it in Currently Solving
+    if (userData.opened[p.url]) {
       currentlySolving.push(p);
     } else {
       others.push(p);
@@ -547,6 +639,37 @@ function renderPuzzles() {
   });
 
   currentlySolving.sort((a, b) => userData.opened[b.url] - userData.opened[a.url]);
+
+  // Sort Others
+  others.sort((a, b) => {
+    let valA, valB;
+    
+    if (filters.sort === 'done') {
+      const getDoneStatus = (url) => {
+        const rc = userData.reviewCount[url];
+        if (rc && rc.count > 0) return 1;
+        if (userData.skipped[url]) return 0.5; // Skipped goes in middle
+        return 0; // Uncompleted goes to top
+      };
+      valA = getDoneStatus(a.url);
+      valB = getDoneStatus(b.url);
+      
+      // Secondary sort by Sno if done status is equal
+      if (valA === valB) {
+         return a.sno - b.sno;
+      }
+    } else if (filters.sort === 'sno') {
+      valA = a.sno; valB = b.sno;
+    } else if (filters.sort === 'title') {
+      valA = a.title.toLowerCase(); valB = b.title.toLowerCase();
+    } else if (filters.sort === 'category') {
+      valA = a.category.toLowerCase(); valB = b.category.toLowerCase();
+    }
+    
+    if (valA < valB) return filters.sortDir === 'asc' ? -1 : 1;
+    if (valA > valB) return filters.sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
 
   if (currentlySolving.length > 0) {
     currentlySolvingContainer.innerHTML = `
