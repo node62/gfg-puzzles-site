@@ -603,6 +603,7 @@ function createCardHTML(p, isCurrentlySolving = false) {
   const isDone = rc.count > 0;
   const hasNote = !!userData.notes[p.url];
   const isExpanded = expandedNotes.has(p.url) || (filters.showNotes && hasNote);
+  const hasPopoverOpen = tagPopoverOpenFor === p.url;
 
   let dismissBtn = '';
   if (isCurrentlySolving) {
@@ -610,7 +611,7 @@ function createCardHTML(p, isCurrentlySolving = false) {
   }
 
   return `
-    <div class="puzzle-card ${isDone ? 'is-done' : ''}">
+    <div class="puzzle-card ${isDone ? 'is-done' : ''}" style="${hasPopoverOpen ? 'z-index: 100;' : ''}">
       <div class="col-actions">
         ${visibleColumns.note ? `
         <button class="btn-icon action-note ${hasNote ? 'active-note' : ''}" onclick="toggleNoteRow('${p.url}')" title="Notes">
