@@ -1,0 +1,72 @@
+(function(){const o=document.createElement("link").relList;if(o&&o.supports&&o.supports("modulepreload"))return;for(const a of document.querySelectorAll('link[rel="modulepreload"]'))s(a);new MutationObserver(a=>{for(const i of a)if(i.type==="childList")for(const r of i.addedNodes)r.tagName==="LINK"&&r.rel==="modulepreload"&&s(r)}).observe(document,{childList:!0,subtree:!0});function t(a){const i={};return a.integrity&&(i.integrity=a.integrity),a.referrerPolicy&&(i.referrerPolicy=a.referrerPolicy),a.crossOrigin==="use-credentials"?i.credentials="include":a.crossOrigin==="anonymous"?i.credentials="omit":i.credentials="same-origin",i}function s(a){if(a.ep)return;a.ep=!0;const i=t(a);fetch(a.href,i)}})();const N="gfgTrackerData",O="gfgTrackerFilters";let m=[],B=[];const j=["Great","Good","Trivial","Hard","Review"];let n={reviewCount:{},tags:{},opened:{},notes:{},skipped:{},customQuestions:[],customTags:[]},c={tag:null,showNotes:!1,sort:"done",sortDir:"asc"},v=new Set,u=null,f={note:!0,tags:!0,category:!0};const y=document.getElementById("puzzles-container"),I=document.getElementById("currently-solving-container"),z=document.getElementById("heatmap"),q=document.getElementById("unsolved-count"),Q=document.getElementById("solved-count"),w=document.getElementById("tag-filter-dropdown"),U=document.getElementById("tag-filter-menu"),h=document.getElementById("sort-filter-dropdown");document.getElementById("sort-filter-menu");const E=document.getElementById("show-notes-filter"),P=document.getElementById("random-btn"),p=document.getElementById("random-question-container"),Y=document.getElementById("hamburger-btn"),M=document.getElementById("side-drawer"),L=document.getElementById("drawer-overlay"),G=document.getElementById("drawer-close"),T=document.getElementById("add-modal-overlay"),S=document.getElementById("add-modal"),J=document.getElementById("open-add-modal-btn"),V=document.getElementById("add-modal-close"),_=document.getElementById("save-custom-btn"),K=document.getElementById("tag-manager-list"),x=document.getElementById("new-tag-input"),Z=document.getElementById("add-tag-btn");function C(e=new Date){const o=e.getTimezoneOffset()*6e4;return new Date(e.getTime()-o).toISOString().split("T")[0]}async function W(){ee(),(!n.customTags||n.customTags.length===0)&&(n.customTags=[...j]),await X(),oe(),te(),ne(),se(),ae(),ie(),re(),H(),A(),l(),document.addEventListener("click",e=>{u&&!e.target.closest(".tag-popover")&&!e.target.closest(".badge-add")&&(u=null,l())})}async function X(){try{const e=await fetch("./puzzles.json");if(!e.ok)throw new Error("Network response was not ok");const o=await e.json(),t=new Map,s=new Set;o.forEach(i=>{if(!t.has(i.url)){t.set(i.url,i);const r=i.category||"Uncategorized";s.has(r)||(s.add(r),B.push(r))}});let a=Array.from(t.values());n.customQuestions&&n.customQuestions.forEach(i=>{s.has(i.category)||(s.add(i.category),B.push(i.category)),a.push(i)}),m=a.map((i,r)=>({...i,sno:i.sno||r+1,category:i.category||"Uncategorized"}))}catch(e){console.error("Failed to fetch puzzles",e),y.innerHTML='<div style="color:var(--text-muted)">Failed to load data.</div>'}}function ee(){try{const e=localStorage.getItem(N);if(e){const t=JSON.parse(e);n.reviewCount=t.reviewCount||{},n.tags=t.tags||{},n.opened=t.opened||{},n.notes=t.notes||{},n.skipped=t.skipped||{},n.customQuestions=t.customQuestions||[],n.customTags=t.customTags||[]}const o=localStorage.getItem(O);if(o){const t=JSON.parse(o);t.tag!==void 0&&(c.tag=t.tag),typeof t.showNotes=="boolean"&&(c.showNotes=t.showNotes),t.sort&&(c.sort=t.sort),t.sortDir&&(c.sortDir=t.sortDir),E.checked=c.showNotes}}catch{}}function d(){localStorage.setItem(N,JSON.stringify(n)),H(),A()}function b(){localStorage.setItem(O,JSON.stringify(c))}window.incrementReview=function(e){n.reviewCount[e]||(n.reviewCount[e]={count:0,lastDone:null}),n.reviewCount[e].count+=1,n.reviewCount[e].lastDone=C(),n.opened[e]&&delete n.opened[e],d(),l()};window.setReviewCount=function(e,o){let t=parseInt(o,10);(isNaN(t)||t<0)&&(t=0),n.reviewCount[e]||(n.reviewCount[e]={count:0,lastDone:null}),n.reviewCount[e].count=t,t>0&&!n.reviewCount[e].lastDone&&(n.reviewCount[e].lastDone=C()),t>0&&n.opened[e]&&delete n.opened[e],d(),l()};window.toggleTag=function(e,o,t){t&&t.stopPropagation(),n.tags[e]||(n.tags[e]=[]);const s=n.tags[e].indexOf(o);s>-1?n.tags[e].splice(s,1):n.tags[e].push(o),d(),l()};window.openTagPopover=function(e,o){o.stopPropagation(),u=u===e?null:e,l()};window.toggleSkip=function(e){n.skipped[e]?delete n.skipped[e]:n.skipped[e]=Date.now(),d(),l()};window.toggleNoteRow=function(e){v.has(e)?v.delete(e):v.add(e),l()};window.markOpened=function(e){n.opened[e]=Date.now(),d(),l()};window.removeCurrentlySolving=function(e,o){o.stopPropagation(),o.preventDefault(),delete n.opened[e],d(),l()};function te(){const e=()=>{K.innerHTML=n.customTags.map((o,t)=>`
+      <div class="tag-list-item">
+        <input type="text" class="matte-input" style="padding: 0.25rem 0.5rem; flex: 1; border: none; background: transparent;" value="${o}" onchange="editCustomTag(${t}, this.value)">
+        <button class="btn-icon" style="padding:0; color:var(--danger);" onclick="deleteCustomTag(${t})">✖</button>
+      </div>
+    `).join(""),F()};window.editCustomTag=function(o,t){const s=t.trim();if(s&&s!==n.customTags[o]&&!n.customTags.includes(s)){const a=n.customTags[o];n.customTags[o]=s,Object.keys(n.tags).forEach(i=>{const r=n.tags[i].indexOf(a);r>-1&&(n.tags[i][r]=s)}),d(),e(),l()}else e()},window.deleteCustomTag=function(o){const t=n.customTags[o];confirm(`Delete tag "${t}"?`)&&(n.customTags.splice(o,1),Object.keys(n.tags).forEach(s=>{const a=n.tags[s].indexOf(t);a>-1&&n.tags[s].splice(a,1)}),d(),e(),l())},Z.addEventListener("click",()=>{const o=x.value.trim();o&&!n.customTags.includes(o)&&(n.customTags.push(o),d(),x.value="",e())}),e()}function ne(){const e=()=>{S.classList.add("open"),T.classList.add("open"),document.body.classList.add("no-scroll")},o=()=>{S.classList.remove("open"),T.classList.remove("open"),document.body.classList.remove("no-scroll")};J.addEventListener("click",e),V.addEventListener("click",o),T.addEventListener("click",o),_.addEventListener("click",()=>{const t=document.getElementById("custom-url").value.trim(),s=document.getElementById("custom-title").value.trim(),a=document.getElementById("custom-category").value.trim()||"Custom";if(!t||!s)return alert("URL and Title are required.");const i={url:t,title:s,category:a,sno:m.length+1};n.customQuestions.push(i),m.push(i),n.opened[t]=Date.now(),d(),o(),document.getElementById("custom-url").value="",document.getElementById("custom-title").value="",document.getElementById("custom-category").value="",l()})}function oe(){const e=()=>{M.classList.add("open"),L.classList.add("open"),document.body.classList.add("no-scroll")},o=()=>{M.classList.remove("open"),L.classList.remove("open"),document.body.classList.remove("no-scroll")};Y.addEventListener("click",e),G.addEventListener("click",o),L.addEventListener("click",o);const t=document.getElementById("reset-progress-btn");t&&t.addEventListener("click",()=>{confirm("Are you sure you want to completely reset all your progress? This cannot be undone.")&&(n.reviewCount={},n.tags={},n.opened={},n.notes={},n.skipped={},d(),l())});const s=document.getElementById("random-btn-toggle");s&&s.addEventListener("change",a=>{P.style.display=a.target.checked?"inline-flex":"none"})}function F(){U.innerHTML=`
+    <div class="dropdown-item" onclick="setTagFilter(null)">All Tags</div>
+    ${n.customTags.map(e=>`<div class="dropdown-item" onclick="setTagFilter('${e}')">${e}</div>`).join("")}
+  `}function se(){const e=w.querySelector(".dropdown-btn"),o=()=>{e.innerHTML=c.tag?`Tag: ${c.tag} <span class="arrow">▼</span>`:'Filter by Tag <span class="arrow">▼</span>'};e.addEventListener("click",t=>{t.stopPropagation(),w.classList.toggle("open"),h.classList.remove("open")}),document.addEventListener("click",()=>{w.classList.remove("open")}),window.setTagFilter=function(t){c.tag=t,b(),o(),l()},E.addEventListener("change",()=>{c.showNotes=E.checked,b(),l()}),F(),o()}function ae(){const e=h.querySelector(".dropdown-btn"),o=()=>{let t="";c.sort==="done"&&(t="Done"),c.sort==="sno"&&(t="Sno"),c.sort==="title"&&(t="Title"),c.sort==="category"&&(t="Category");const s=c.sortDir==="asc"?"(Asc)":"(Desc)";e.innerHTML=`Sort By: ${t} ${s} <span class="arrow">▼</span>`};e.addEventListener("click",t=>{t.stopPropagation(),h.classList.toggle("open"),w.classList.remove("open")}),document.addEventListener("click",()=>{h.classList.remove("open")}),window.setSortFilter=function(t,s){c.sort=t,c.sortDir=s,b(),o(),l()},o()}function ie(){document.querySelectorAll(".col-toggle").forEach(e=>{e.addEventListener("change",o=>{f[o.target.value]=o.target.checked,l()})})}function re(){P.addEventListener("click",()=>{const o=R().filter(s=>!n.reviewCount[s.url]||n.reviewCount[s.url].count===0);if(o.length===0){p.innerHTML='<div style="padding:1rem; color:var(--text-muted)">You solved all visible questions!</div>';return}const t=o[Math.floor(Math.random()*o.length)];p.innerHTML=`
+      <div class="list-header" style="display:flex; justify-content:space-between;">
+        <span>🎲 Your Random Challenge</span>
+        <button id="close-random-btn" style="background:none; border:none; color:var(--text-muted); cursor:pointer;">✖</button>
+      </div>
+      <div class="puzzle-list" style="margin-bottom: 2rem;">
+        ${k(t,!1)}
+      </div>
+    `,p.querySelector("#close-random-btn").addEventListener("click",()=>{p.innerHTML=""})})}function H(){const e=Object.values(n.reviewCount).filter(t=>t.count>0).length,o=m.length-e;Q.textContent=e,q.textContent=o}function A(){z.innerHTML="";const e={};Object.values(n.reviewCount).forEach(a=>{a.count>0&&a.lastDone&&(e[a.lastDone]=(e[a.lastDone]||0)+1)});const o=document.createElement("div");o.className="heatmap-grid";const t=new Date,s=[];for(let a=13;a>=0;a--){const i=new Date(t);i.setDate(t.getDate()-a),s.push(C(i))}s.forEach(a=>{const i=e[a]||0,r=document.createElement("div");r.className="heatmap-cell",i>0&&(r.setAttribute("data-count",Math.min(i,5)),r.textContent=i),r.setAttribute("data-title",`${a}: ${i} reviews`),o.appendChild(r)}),z.appendChild(o)}function R(){return m.filter(e=>!(c.tag&&!(n.tags[e.url]||[]).includes(c.tag)))}function ce(e){const o=n.tags[e]||[];let t="";if(o.forEach(s=>{const a=`badge-${s.toLowerCase()}`;t+=`<span class="badge badge-tag ${a}" onclick="toggleTag('${e}', '${s}', event)">${s} ✖</span>`}),t+=`<span class="badge badge-add" onclick="openTagPopover('${e}', event)">+ Tag</span>`,u===e){const s=n.customTags.map(a=>`<label class="matte-checkbox" style="padding: 0.25rem;"><input type="checkbox" ${o.includes(a)?"checked":""} onchange="toggleTag('${e}','${a}', event)"><span class="checkmark" style="width:14px;height:14px;"></span> ${a}</label>`).join("");t+=`<div class="tag-popover" onclick="event.stopPropagation()">${s}</div>`}return t}function k(e,o=!1){const t=n.reviewCount[e.url]||{count:0},s=t.count>0,a=!!n.notes[e.url],i=v.has(e.url)||c.showNotes&&a,r=u===e.url;let g="";return o&&(g=`<button class="btn-icon" style="font-size:0.8rem; margin-left: 0.5rem; opacity: 0.5;" onclick="removeCurrentlySolving('${e.url}', event)" title="Remove from Currently Solving">✖</button>`),`
+    <div class="puzzle-card ${s?"is-done":""}" style="${r?"z-index: 100;":""}">
+      <div class="col-actions">
+        ${f.note?`
+        <button class="btn-icon action-note ${a?"active-note":""}" onclick="toggleNoteRow('${e.url}')" title="Notes">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        </button>
+        `:""}
+        
+        ${f.tags?`
+        <div class="tags-container action-tags" style="position:relative;">
+          ${ce(e.url)}
+        </div>
+        `:""}
+
+        <button 
+          class="btn-check action-check ${s?"active":""}" 
+          onclick="incrementReview('${e.url}')" 
+          title="Increment">+</button>
+
+        <input type="number" class="count-input action-count" value="${t.count}" onchange="setReviewCount('${e.url}', this.value)" min="0">
+      </div>
+
+      <div class="col-main">
+        <div>
+          <a href="${e.url}" target="_blank" class="puzzle-link" onclick="markOpened('${e.url}')">${e.sno}. ${e.title}</a>${g}
+        </div>
+        <div class="puzzle-meta">
+          ${f.category?`<span class="badge badge-cat">${e.category}</span>`:""}
+          ${n.skipped[e.url]?'<span class="badge badge-review">Skipped</span>':""}
+        </div>
+      </div>
+      
+      <div class="col-skip">
+        <button class="btn-icon" onclick="toggleSkip('${e.url}')" title="Toggle Skip">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+        </button>
+      </div>
+      
+      ${i?`
+      <div class="note-container">
+        <textarea class="note-input" placeholder="Write your notes here..." oninput="updateNote('${e.url}', this.value)">${n.notes[e.url]||""}</textarea>
+      </div>
+      `:""}
+    </div>
+  `}window.updateNote=function(e,o){const t=o.trim();t?n.notes[e]=t:delete n.notes[e],d()};function l(){y.innerHTML="",I.innerHTML="";const e=R();if(e.length===0){y.innerHTML='<div style="color:var(--text-muted); text-align:center; padding: 2rem;">No puzzles match your criteria.</div>';return}const o=[],t=[];e.forEach(s=>{n.opened[s.url]?o.push(s):t.push(s)}),o.sort((s,a)=>n.opened[a.url]-n.opened[s.url]),t.sort((s,a)=>{let i,r;if(c.sort==="done"){const g=$=>{const D=n.reviewCount[$];return D&&D.count>0?1:n.skipped[$]?.5:0};if(i=g(s.url),r=g(a.url),i===r)return s.sno-a.sno}else c.sort==="sno"?(i=s.sno,r=a.sno):c.sort==="title"?(i=s.title.toLowerCase(),r=a.title.toLowerCase()):c.sort==="category"&&(i=s.category.toLowerCase(),r=a.category.toLowerCase());return i<r?c.sortDir==="asc"?-1:1:i>r?c.sortDir==="asc"?1:-1:0}),o.length>0&&(I.innerHTML=`
+      <div class="list-header">CURRENTLY SOLVING</div>
+      <div class="puzzle-list" style="margin-bottom: 2rem;">
+        ${o.map(s=>k(s,!0)).join("")}
+      </div>
+    `),y.innerHTML=`
+    <div class="list-header">ALL PUZZLES</div>
+    <div class="puzzle-list">
+      ${t.map(s=>k(s,!1)).join("")}
+    </div>
+  `}document.addEventListener("DOMContentLoaded",W);
