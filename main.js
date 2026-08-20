@@ -212,7 +212,8 @@ window.toggleTag = function(url, tag, e) {
   if (idx > -1) {
     userData.tags[url].splice(idx, 1);
   } else {
-    userData.tags[url].push(tag);
+    userData.tags[url] = [tag];
+    tagPopoverOpenFor = null;
   }
   saveUserData();
   renderPuzzles();
@@ -574,7 +575,9 @@ function renderTagBadges(url) {
     html += `<span class="badge badge-tag ${cls}" onclick="toggleTag('${url}', '${t}', event)">${t} ✖</span>`;
   });
   
-  html += `<span class="badge badge-add" onclick="openTagPopover('${url}', event)">+ Tag</span>`;
+  if (pTags.length === 0) {
+    html += `<span class="badge badge-add" onclick="openTagPopover('${url}', event)">+ Tag</span>`;
+  }
   
   if (tagPopoverOpenFor === url) {
     const opts = userData.customTags.map(t => {
